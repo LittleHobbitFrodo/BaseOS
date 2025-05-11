@@ -4,4 +4,6 @@ kernel
 .idea
 .rustc_info.json
 baseOS.bin
-baseOS.iso
+baseOS.iso.cache
+.idea
+.DS_Store

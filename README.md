@@ -1,6 +1,9 @@
 # BaseOS 
 BaseOS is a template for your operating system project. It performs all the activities around it, such as building the kernel and creating a disk image.
 
+# IMPORTANT
+BaseOS is not yet finished and may not work. It still needs tinkering...
+
 # Main Goal
 The main goal of this project is to create a reliable and simple platform for creating multi-platform operating systems in several programming languages and on different 64 bit platforms. So far only the x86_64 target is supported.
 
@@ -39,9 +42,9 @@ Please note that some development **dependencies** must be **built from source**
 # Development Dependencies
 ### C
 - x86_64
-  - **x86_64-elf-gcc** - Compiles the kernel
+  - **x86_64-elf-gcc** - Or similar compiler
 - arm64
-  - **aarch64-elf-gcc** - Compiles the kernel
+  - **aarch64-elf-gcc** - Or similar
 ### Rust
 - **rustup** (regardless of the target platform)
   - The `util` utility will install and set it up for you

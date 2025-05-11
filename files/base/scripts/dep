@@ -92,6 +92,7 @@ esac
 
 case "$(uname)" in
     Darwin)
+        #   MacOS
         if [ $(search_path brew) == NONE ]; then
             warning "Homebrew is not installed"
 
@@ -107,13 +108,16 @@ case "$(uname)" in
             fi
         fi
 
-
         case $lang in
             c)
-                add_compiler=true       #   compiler + linker in one package
+                binutils_postfix="gcc"
             ;;
             rust)
-                add_compiler=false
+                binutils_postfix="binutils"
+            ;;
+            *)
+                error "language $lang is not supported by dep subcommand"
+                exit 2
             ;;
         esac
 
@@ -121,31 +125,17 @@ case "$(uname)" in
         IFS=" "
         for i in $arch; do
             i="$(get_arch $i)"
-            if [ $add_compiler == true ]; then
-                case $(check_package "$i-elf-gcc" "$i-elf-gcc") in
-                    OK) 
-                        packages+=("$i-elf-gcc")
-                    ;;
-                    NONE)
-                        note "$(blue "$i-elf-gcc") is already $mode_str"
-                    ;;
-                    EXCLUDED)
-                        note "$(blue "$i-elf-gcc") is excluded"
-                    ;;
+            case $(check_package "$i-elf-$binutils_postfix" "$i-elf-$binutils_postfix") in
+                OK) 
+                    packages+=("$i-elf-$binutils_postfix")
+                ;;
+                NONE)
+                    note "$(blue "$i-elf-$binutils_postfix") is already $mode_str"
+                ;;
+                EXCLUDED)
+                    note "$(blue "$i-elf-$binutils_postfix") is excluded"
+                ;;
                 esac
-            else
-                case $(check_package "$i-elf-ld" "$i-elf-binutils") in
-                    OK)
-                        packages+=("$i-elf-binutils")
-                    ;;
-                    NONE)
-                        note "$(blue "$i-elf-ld") is already $mode_str"
-                    ;;
-                    EXCLUDED)
-                        note "$(blue "$i-elf-binutils") is excluded"
-                    ;;
-                esac
-            fi
         done
 
         

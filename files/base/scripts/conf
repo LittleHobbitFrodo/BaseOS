@@ -10,16 +10,6 @@ fi
 
 baseos_url="https://github.com/LittleHobbitFrodo/baseOS.git"
 
-#if [ -e "$UTIL_CONFIG" ]; then
-
-#    if [ "$configured" == true ]; then
-#        error "project is already configured"
-#        exit 2
-#    fi
-#fi
-
-
-
 arch=()
 lang=""
 iso_name=BaseOS     #   -<arch>.iso will be added by the build subcommand
@@ -72,7 +62,7 @@ for arg in "$@"; do
 done
 
 if [[ "$lang" == c && "$main_file" == NONE ]]; then
-    main_file="./kernel/src/init.c"
+    main_file="./kernel/src/init/init.c"
 fi
 
 if [[ ! -e "$PWD/kernel" && "$download" == true ]]; then
@@ -120,12 +110,13 @@ echo "iso_name=$iso_name" >> $UTIL_CONFIG
 echo "main_file=$main_file" >> $UTIL_CONFIG
 
 
-c_compiler_midnames="-elf- -linux-gnu-"       #   without the last -
+c_compiler_midnames="-elf- -linux-gnu- -none-linux-gnu-"
 IFS=" "
 for i in "${arch[@]}"; do
+
     compiler=NONE
     linker=NONE
-    #   check the compiler
+    # #   check the compiler
     case "$lang" in
         c)
             for cc in $c_compiler_midnames; do
@@ -168,6 +159,7 @@ for i in "${arch[@]}"; do
 
     #   flush the config
     echo "# This is util $i target configuration, please do not edit manually" > $config_file
+    echo "# Paths are relative to project root" >> $config_file
     echo "compiler=$compiler" >> $config_file
     echo "linker=$linker" >> $config_file
     echo "emulator=$qemu" >> $config_file
