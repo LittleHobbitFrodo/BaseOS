@@ -71,7 +71,7 @@ if [[ ! -e "$PWD/kernel" && "$download" == true ]]; then
     case "$lang" in 
         c)
             git clone "$baseos_url" --branch C
-            if [ "$#" != 0 ]; then
+            if [ "$?" != 0 ]; then
                 error "failed to clone $(blue "git clone $baseos_url --branch C")"
                 exit 2
             fi
