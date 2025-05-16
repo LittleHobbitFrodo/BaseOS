@@ -148,6 +148,8 @@ for i in "${arch[@]}"; do
     if [ "$linker" == NONE ]; then
         warning "linker for the $i target is missing"
         all_tools_installed=false
+    else
+        ln -s "$linker" ./kernel/symlink-linker-ld
     fi
 
     if [ "$qemu" == NONE ]; then
