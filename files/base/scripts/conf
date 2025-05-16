@@ -149,6 +149,9 @@ for i in "${arch[@]}"; do
         warning "linker for the $i target is missing"
         all_tools_installed=false
     else
+        if [ -e "./kernel/symlink-linker-ld" ]; then
+            rm ./kernel/symlink-linker-ld
+        fi
         ln -s "$linker" ./kernel/symlink-linker-ld
     fi
 

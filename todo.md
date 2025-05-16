@@ -1,5 +1,7 @@
 ## TODO - base
 
+create testing branches to push code to for testing
+
 Redo `util`
 - add `use` subcommand
   - chooses language, platform(s)
