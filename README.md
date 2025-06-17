@@ -1,14 +1,14 @@
 # BaseOS 
-BaseOS is a template for your operating system project. It performs all the activities around it, such as building the kernel and creating a disk image.
+BaseOS is a template for your operating system. It contains several libraries, including a minimized strandard library (ministd) and a set of tools for compiling the system, installing dependencies, etc.
 
 # IMPORTANT
 BaseOS is not yet finished and may not work. It still needs tinkering...
 
 # Main Goal
-The main goal of this project is to create a reliable and simple platform for creating multi-platform operating systems in several programming languages and on different 64 bit platforms. So far only the x86_64 target is supported.
+The main goal of this project is to create a reliable and simple platform for creating multi-platform operating systems for various 64 bit platforms. So far only the x86_64 target is supported.
 
 # What is provided
-BaseOS provides simplified standard libraries for each language and tools that take care of dependencies, building and running the operating system.  
+BaseOS provides simplified standard library for Rust and tools that take care of dependencies, building and running the operating system.  
 This project is not intended to be an example of an operating system, only its foundation.
 
 # Licence
@@ -36,15 +36,9 @@ Please note that some development **dependencies** must be **built from source**
 - [ ] arm64
 
 # Supported Programming Languages
-- [X] Rust (75% of the work is done)
-- [X] C (±25% => The stdlib has not been worked on yet)
+- [X] Rust (60% of the work is done)
 
 # Development Dependencies
-### C
-- x86_64
-  - **x86_64-elf-gcc** - Or similar compiler
-- arm64
-  - **aarch64-elf-gcc** - Or similar
 ### Rust
 - **rustup** (regardless of the target platform)
   - The `util` utility will install and set it up for you
@@ -57,7 +51,7 @@ Please note that some development **dependencies** must be **built from source**
 
 # Lets get started!
 1. To initialize the project, simply clone the base branch
-    - `git clone https://github.com/LittleHobbitFrodo/baseOS.git --branch base`
+    - `git clone https://github.com/LittleHobbitFrodo/BaseOS.git`
 2. Choose your target platform and programming language
 3. Configuring the project using the `util` tool
     - `./util conf <arch> <lang>`
@@ -70,27 +64,13 @@ Please note that some development **dependencies** must be **built from source**
 # Roadmap
 ### Base
 - Util
-  - [ ] Project Info
+  - [X] Project Info
   - [X] Project configuration
   - [X] Project Reconfiguration
   - [X] Running
   - [ ] Dependency management
   - [X] Project management
   - [X] mkiso
-  
-- TODO
-  - when changing kernel name limine configs must be updated
-    - once done update mkiso to work with it
-  - add assembler support
-    - assembler for each architecture
-    - specified as parameter for conf subcommand?
-  - instead of using paths to linker, compiler etc, the path will be statisally pointing to symlinks pointing to the tools
-  - add compiler_parameters.conf
-### C
-- [X] Bootable
-- [X] Renderer
-- [ ] STDlib
-
 ### Rust
 - [X] Bootable
 - [X] Renderer
@@ -105,7 +85,8 @@ Please note that some development **dependencies** must be **built from source**
   - [X] Heap
     - buddy_system_allocator
   - [X] String (untested)
-  - [ ] Box
+  - [X] Box
+    - `Array` is used for allocation of arrays
   - [ ] Vector
   - [ ] HashMap
   - [ ] Rc
