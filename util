@@ -1,0 +1,64 @@
+#!/bin/bash
+
+function report() {
+    status="$?"
+    if [ -n "${subcmd+x}" ]; then
+        echo "$(red "OPERATION $subcmd FAILED")"
+        if [[ -e "$SCRIPTS/$subcmd" && "$status" == 1 ]]; then
+            $SCRIPTS/help $subcmd
+        fi
+    else
+        echo "$(red "COMMAND $BASH_COMMAND FAILED")"
+    fi
+    exit 1
+}
+
+set -eEuo pipefail
+
+#   set function to call if anything fails
+trap report ERR
+
+
+source "$PWD/files/base/scripts.conf"
+
+
+#   SCRIPT ENTRY POINT
+if [ "$#" -lt 1 ]; then
+    error "no command given"
+    echo
+    $SCRIPTS/help
+    exit 1
+fi
+
+if [ "$1" != conf ]; then
+    if [ ! -e "$UTIL_CONFIG" ]; then
+        error "project is not configured"
+        echo
+        $SCRIPTS/help conf
+        exit 1
+    else
+        source $UTIL_CONFIG
+        if [ "$configured" != true ]; then
+            error "project is not configured"
+            echo
+            $SCRIPTS/help conf
+            exit 1
+        fi
+    fi
+fi
+
+args="${@:2}"
+subcmd=$1
+
+
+if [ -e "$SCRIPTS/$subcmd" ]; then
+    $SCRIPTS/$subcmd $args
+else
+    error "subcommand '$subcmd' does not exist"
+    $SCRIPTS/help
+    exit 1
+fi
+
+if [ "$subcmd" == build ]; then
+    $SCRIPTS/mkiso
+fi

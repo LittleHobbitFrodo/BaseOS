@@ -1,0 +1,158 @@
+#!/bin/bash
+
+source "$PWD/files/base/scripts.conf"
+
+
+function is_excluded() {
+    old_ifs="$IFS"
+    IFS=" "
+    for i in "${excluded[@]}"; do
+        if [ "${excluded[$i]}" == "$1" ]; then
+            IFS="$old_ifs"
+            echo true
+            return
+        fi
+    done
+    IFS="$old_ifs"
+    echo false
+}
+
+function check_package() {     #   returns if package should be added to the list regardles operation mode
+    #   $1 = program name to search
+    if [ $(is_excluded $2) == true ]; then
+        echo EXCLUDED
+        return
+    fi
+    if [ "$mode" == install ]; then
+        if [ "$(search_path "$1")" == NONE ]; then
+            echo OK
+        else
+            echo NONE
+        fi
+    else
+        if [ "$(search_path "$1")" != NONE ]; then
+            echo OK
+        else
+            echo NONE
+        fi
+    fi
+}
+
+#   find except packages
+excluded=()
+if [ "$#" -gt 2 ]; then
+    for arg in $@; do
+        if [[ "$arg" == "exclude" ]]; then
+            collect=1
+            echo found exclude
+            continue
+        fi
+        if [[ $collect -eq 1 ]]; then
+            echo "excluding: $arg"
+            excluded+="$arg"
+        fi
+    done
+fi
+
+
+
+packages=()
+
+
+if [ "$#" -eq 0 ]; then
+    error "please tell me what to do $(green "install or remove?")"
+    exit 1
+fi
+
+case "$(echo $1 | tr '[:upper:]' '[:lower:]')" in
+    remove)
+        mode=remove
+        mode_str=removed
+    ;;
+    install)
+        mode=install
+        mode_str=installed
+    ;;
+    *) error "unknown option $arg"; exit 1 ;;
+esac
+
+#   install rust
+case $(check_package rustup rustup ) in
+    OK)
+        #   install rust
+    ;;
+    NONE)
+        note "$(blue rust) is already installed"
+    ;;
+    EXCLUDED)
+        note "$(blue rust) is excluded"
+    ;;
+esac
+
+
+case "$(uname)" in
+    Darwin)
+        #   MacOS
+        if [ $(search_path brew) == NONE ]; then
+            warning "Homebrew is not installed"
+
+            if [ "$(ask "$(yellow "would you like mo to install it")")" == y ]; then
+                /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                if [ "$?" != 0 ]; then
+                    error "Homebrew installation failed"
+                    exit 2
+                fi
+            else
+                error "Sorry, unable to work without Homebrew on mac :("
+                exit 2
+            fi
+        fi
+
+        case $lang in
+            c)
+                binutils_postfix="gcc"
+            ;;
+            rust)
+                binutils_postfix="binutils"
+            ;;
+            *)
+                error "language $lang is not supported by dep subcommand"
+                exit 2
+            ;;
+        esac
+
+        #   find linker/compiler
+        IFS=" "
+        for i in $arch; do
+            i="$(get_arch $i)"
+            case $(check_package "$i-elf-$binutils_postfix" "$i-elf-$binutils_postfix") in
+                OK) 
+                    packages+=("$i-elf-$binutils_postfix")
+                ;;
+                NONE)
+                    note "$(blue "$i-elf-$binutils_postfix") is already $mode_str"
+                ;;
+                EXCLUDED)
+                    note "$(blue "$i-elf-$binutils_postfix") is excluded"
+                ;;
+                esac
+        done
+
+        
+
+        if [ "${#packages[@]}" -eq 0 ]; then
+            note "all packages are already $mode_str"
+            exit
+        fi
+
+        note "installing these packages: $(blue "${packages[@]}")"
+        if [ $(ask "is this OK") == y ]; then
+            brew $mode "${packages[@]}"
+        else
+            note "no packages were installed"
+            exit
+        fi
+
+
+    ;;
+esac
