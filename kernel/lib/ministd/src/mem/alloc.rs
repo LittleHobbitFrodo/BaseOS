@@ -134,7 +134,10 @@ impl Allocator {
             return core::ptr::null_mut();
         }
 
-        unsafe { core::ptr::copy_nonoverlapping(old, new, core::cmp::min(old_l.size(), new_l.size())); }
+        unsafe {
+            core::ptr::copy_nonoverlapping(old, new, core::cmp::min(old_l.size(), new_l.size()));
+            ALLOCATOR.dealloc(old, old_l);
+        }
 
         new
 
@@ -213,7 +216,10 @@ unsafe impl GlobalAlloc for Allocator {
         };
 
         let count = core::cmp::min(new_size, layout.size());
-        unsafe { copy_nonoverlapping(ptr, new, count) };
+        unsafe {
+            copy_nonoverlapping(ptr, new, count);
+            self.dealloc(ptr, layout);
+        }
         new
     }
 

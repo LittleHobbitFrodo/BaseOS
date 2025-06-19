@@ -81,7 +81,7 @@ Please note that some development **dependencies** must be **built from source**
     - [X] Output Formatting
   - [X] Sync primitives
     - used Spin crate
-  - [ ] Panicking
+  - [X] Panicking
   - [X] Heap
     - buddy_system_allocator
   - [X] String (untested)

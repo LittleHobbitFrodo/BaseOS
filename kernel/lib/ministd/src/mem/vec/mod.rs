@@ -2,21 +2,923 @@
 //  this file originally belonged to baseOS project
 //      on OS template on which to build
 
-use core::{alloc::{GlobalAlloc, Layout, LayoutError}, ascii, fmt::Write, hint::spin_loop, mem::ManuallyDrop, ops::RangeBounds, ptr::{self, drop_in_place, null, null_mut, NonNull}, slice};
+
+use core::ptr::drop_in_place;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
+use core::ops::{Bound::*, Index, IndexMut, RangeBounds, Deref, DerefMut};
+
+use crate::mem::dynamic_buffer::DynamicBuffer;
+use crate::TryClone;
+
+
+/// A contiguous growable array type, written as Vec<T>, short for ‘vector’.
+/// 
+/// ## Implementation details
+/// ### Generic parameters
+/// 1. `T`: datatype of each element
+/// 2. `STEP`: indicates how much will vector grow
+///     - geometrical growth is used by default
+pub struct Vec<T: Sized, const STEP: usize = 0> {
+    data: DynamicBuffer<T, STEP>,
+    size: usize,
+}
+
+impl<T: Sized, const STEP: usize> Vec<T, STEP> {
+
+    /// Constructs new empty `Vec<T>`
+    pub const fn new() -> Self {
+        Self {
+            data: DynamicBuffer::empty(),
+            size: 0,
+        }
+    }
+
+
+    /// Constructs new empty `Vec` with at least the specified capacity allocated
+    /// - **panics** if allocation fails
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            data: DynamicBuffer::with_capacity(capacity),
+            size: 0,
+        }
+    }
+
+
+    /// Tries to construct new empty `Vec<T>` with at least the specified capacity allocated
+    /// - returns `Err` if allocation fails
+    #[inline]
+    pub fn try_with_capacity(capacity: usize) -> Result<Self, ()> {
+        Ok(Self {
+            data: DynamicBuffer::try_with_capacity(capacity)?,
+            size: 0,
+        })
+    }
+
+    /// Reserves capacity for at least `additional` more elements
+    /// - **panics** if allocation fails
+    #[inline]
+    pub fn reserve(&mut self, additional: usize) {
+
+        if self.len() + additional > self.capacity() {
+            self.data.resize(self.len() + additional);
+        }
+
+    }
+
+    /// Tries to reserve capacity for at least `additional` more elements
+    /// - returns `Err` if allocation fails
+    #[inline]
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), ()> {
+        if self.len() + additional > self.capacity() {
+            self.data.try_resize(self.len() + additional)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Reserves the minimum capacity for at least `additional` more elements
+    /// - **panics** if allocation fails
+    #[inline]
+    pub fn reserve_exact(&mut self, additional: usize) {
+        if self.len() + additional > self.capacity() {
+            self.data.resize_exact(self.len() + additional);
+        }
+    }
+
+    /// Tries to reserve the minimum capacity for at least `additional` more elements
+    /// - returns `Err` if allocation fails
+    #[inline]
+    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), ()> {
+        if self.len() + additional > self.capacity() {
+            self.data.try_resize_exact(self.len() + additional)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Appends one element at the end of the vector
+    /// - **panics** if allocation fails
+    pub fn push(&mut self, val: T) {
+        if self.len() == self.capacity() {
+            self.data.expand();
+        }
+        
+        unsafe {
+            self.data.as_ptr().add(self.len()).write(val);
+        }
+        self.size += 1;
+    }
+
+    /// Tries to append one element at the end of the vector
+    /// - returns `Err` if allocation fails
+    ///     - in this case returns the ownership of `val`
+    pub fn try_push(&mut self, val: T) -> Result<(), T> {
+        if self.len() == self.capacity() {
+            if let Err(_) = self.data.try_expand() {
+                return Err(val);
+            }
+        }
+        unsafe {
+            self.data.as_ptr().add(self.len()).write(val);
+        }
+
+        self.size += 1;
+
+        Ok(())
+
+    }
+
+    /// Appends the vector if there is enough spare space in allocated memory
+    pub fn push_within_capacity(&mut self, val: T) -> Result<(), T> {
+        if self.len() == self.capacity() {
+            return Err(val);
+        } else {
+            unsafe {
+                self.data.as_ptr().add(self.len()).write(val);
+            }
+            self.size += 1;
+            Ok(())
+        }
+    }
+
+    /// Shrinks the capacity of the vector as much as possible
+    /// - **panics** if allocation fails
+    #[inline]
+    pub fn shrink_to_fit(&mut self) {
+        self.data.resize_exact(self.len());
+    }
+
+    /// Shrinks the capacity of the vector as much as possible
+    /// - returns `Err` if allocation fails
+    #[inline]
+    pub fn try_shrink_to_fit(&mut self) -> Result<(), ()> {
+        self.data.try_resize_exact(self.len())
+    }
+
+    /// Shrinks the vector to some size while dropping all elements that will not be preserved
+    /// - **panics** if allocation fails
+    pub fn shrink_to(&mut self, size: usize) {
+        if self.capacity() > size {
+            if size < self.len() {
+                unsafe {
+                    drop_in_place(from_raw_parts_mut(self.data.as_ptr()
+                    .add(size), self.len() - size));
+                }
+            }
+            self.data.resize_exact(size);
+        }
+    }
+
+    /// Tries to shrink the vector to some size while dropping all elements that will not be preserved
+    /// - returns `Err` if allocation fails
+    pub fn try_shrink_to(&mut self, size: usize) -> Result<(), ()> {
+        if self.capacity() > size {
+            if size < self.len() {
+                unsafe {
+                    drop_in_place(from_raw_parts_mut(self.data.as_ptr()
+                    .add(size), self.len()));
+                }
+            }
+
+            self.data.try_resize_exact(size)
+        } else {
+            Ok(())
+        }
+    }
+
+
+    /// Forces the length of the vector to new_len.
+    /// - this will not construct and/or modify `capacity`
+    /// - this function does not check for any boundaries (including `capacity`)
+    #[inline(always)]
+    pub unsafe fn set_len(&mut self, len: usize) {
+        self.size = len;
+    }
+
+    /// Clears the vector, removing all values.
+    /// - note that this method has no effect on the allocated capacity of the vector.
+    #[inline(always)]
+    pub fn clear(&mut self) {
+        self.size = 0;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+    /// Returns number of elements in the vector
+    pub const fn len(&self) -> usize {
+        self.size
+    }
+
+    /// Returns number of elements allocated by the vector
+    pub const fn capacity(&self) -> usize {
+        self.data.capacity()
+    }
+
+    /// Checks whether the vector is empty
+    pub const fn is_empty(&self) -> bool {
+        self.size == 0
+    }
+
+    /// Checks if vector has any allocated data
+    pub const fn has_data(&self) -> bool {
+        self.data.has_data()
+    }
+
+    pub const fn step(&self) -> usize {
+        STEP
+    }
+
+
+
+
+    /// returns contents of the vector as slice
+    /// - or `None` if vector does not have any contents
+    pub const fn as_slice(&self) -> Option<&[T]> {
+        if let Some(data) = self.data.data() {
+            Some(unsafe { from_raw_parts(data.as_ptr(), self.len()) })
+        } else {
+            None
+        }
+    }
+
+    /// returns contents of the vector as mutable slice
+    /// - or `None` if vector does not have any contents
+    pub const fn as_mut_slice(&self) -> Option<&mut [T]> {
+        if let Some(data) = self.data.data() {
+            Some(unsafe { from_raw_parts_mut(data.as_ptr(), self.len()) })
+        } else {
+            None
+        }
+    }
+
+
+    /// returns contents of the vector as slice
+    /// - **panics** if vector does not have any contents
+    pub const fn as_slice_unchecked(&self) -> &[T] {
+        unsafe { from_raw_parts(self.data.data()
+        .expect("Vec does not contain any data").as_ptr(), self.len())}
+    }
+
+    /// returns contents of the vector as mutable slice
+    /// - **panics** if vector does not have any contents
+    pub const fn as_mut_slice_unchecked(&mut self) -> &mut [T] {
+        unsafe { from_raw_parts_mut(self.data.data()
+        .expect("Vec does not contain any data").as_ptr(), self.len())}
+    }
+
+
+    #[inline]
+    fn handle_bounds<R>(&self, range: &R) -> (usize, usize)
+    where R: RangeBounds<usize> {
+
+        (match range.start_bound() {
+            Excluded(&val) => val + 1,
+            Included(&val) => val,
+            Unbounded => 0,
+        },
+        match range.end_bound() {
+            Included(&val) => val + 1,
+            Excluded(&val) => val,
+            Unbounded => self.len(),
+        })
+    }
+
+    /// Returns an subslice from the vector
+    /// - or `None` if vector has no data or out of bounds
+    pub fn get<R>(&self, range: R) -> Option<&[T]>
+    where R: RangeBounds<usize> {
+        if let Some(data) = self.data.data() {
+            let (start, end) = self.handle_bounds(&range);
+
+            if start > self.len() || end > self.len() {
+                return None;
+            }
+
+            Some(unsafe { from_raw_parts(data.add(start).as_ptr(), end - start) })
+        } else {
+            None
+        }
+    }
+
+    /// Returns an mutable subslice from the vector
+    /// - or `None` if vector has no data or out of bounds
+    pub fn get_mut<R>(&self, range: R) -> Option<&mut [T]>
+    where R: RangeBounds<usize> {
+        if let Some(data) = self.data.data() {
+            let (start, end) = self.handle_bounds(&range);
+
+            if start > self.len() || end > self.len() {
+                return None;
+            }
+
+            Some(unsafe { from_raw_parts_mut(data.add(start).as_ptr(), end - start) })
+        } else {
+            None
+        }
+    }
+
+    /// Returns an sublice from the vector withou doing bounds check
+    /// - **panics** if has no data
+    pub unsafe fn get_unchecked<R>(&self, range: R) -> &[T]
+    where R: RangeBounds<usize> {
+        if let Some(data) = self.data.data() {
+            let (start, end) = self.handle_bounds(&range);
+            unsafe {
+                from_raw_parts(data.add(start).as_ptr(), end - start)
+            }
+        } else {
+            panic!("Vec does not contain any data");
+        }
+    }
+
+    /// Returns an mutable sublice from the vector withou doing bounds check
+    /// - **panics** if has no data
+    pub unsafe fn get_unchecked_mut<R>(&mut self, range: R) -> &[T]
+    where R: RangeBounds<usize> {
+        if let Some(data) = self.data.data() {
+            let (start, end) = self.handle_bounds(&range);
+            unsafe {
+                from_raw_parts_mut(data.add(start).as_ptr(), end - start)
+            }
+        } else {
+            panic!("Vec does not contain any data");
+        }
+    }
+
+    /// Returns iterator for this vector
+    #[inline(always)]
+    pub fn iter<'l>(&'l self) -> core::slice::Iter<'l, T> {
+        self.as_slice_unchecked().iter()
+    }
+
+    pub fn iter_mut<'l>(&'l mut self) -> core::slice::IterMut<'l, T> {
+        self.as_mut_slice_unchecked().iter_mut()
+    }
+
+
+}
+
+
+impl<T: Sized, const STEP: usize> Drop for Vec<T, STEP> {
+    fn drop(&mut self) {
+        if let Some(data) = self.data.data() {
+            unsafe {
+                drop_in_place(from_raw_parts_mut(data.as_ptr(), self.len()));
+            }
+        }
+    }
+}
+
+impl<T: Sized, const STEP: usize> Index<usize> for Vec<T, STEP> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        if let Some(data) = self.data.data() {
+            if index < self.len() {
+                unsafe {
+                    return data.add(index).as_ref();
+                }
+            }
+        }
+
+        panic!("Vec[]: out of bounds");
+    }
+}
+
+impl<T: Sized, const STEP: usize> IndexMut<usize> for Vec<T, STEP> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        if let Some(data) = self.data.data() {
+            if index < self.len() {
+                unsafe {
+                    return data.add(index).as_mut();
+                }
+            }
+        }
+        panic!("Vec[]: out of bounds");
+    }
+}
+
+impl<T: Sized + Clone, const STEP: usize> Clone for Vec<T, STEP> {
+    fn clone(&self) -> Self {
+
+        let db = self.data.clone();
+
+        let new_slice = unsafe { from_raw_parts_mut(db.as_ptr(), self.len()) };
+        let old_slice = unsafe { from_raw_parts(self.data.as_ptr(), self.len()) };
+
+        for (i, item) in new_slice.iter_mut().enumerate() {
+            *item = old_slice[i].clone();
+        }
+
+        Self {
+            data: db,
+            size: self.len(),
+        }
+
+    }
+}
+
+impl<T: Sized + TryClone, const STEP: usize> TryClone for Vec<T, STEP> {
+    type Error = ();
+
+    fn try_clone(&self) -> Result<Self, Self::Error>
+    where Self: Sized, Self::Error: Default {
+        
+        let db = self.data.try_clone()?;
+
+        let new_slice = unsafe { from_raw_parts_mut(db.as_ptr(), self.len()) };
+        let old_slice = unsafe { from_raw_parts(self.data.as_ptr(), self.len()) };
+
+        //  copy all elements (DynamicBuffer does not do that)
+        for (i, item) in new_slice.iter_mut().enumerate() {
+            *item = match old_slice[i].try_clone() {
+                Ok(i) => i,
+                Err(_) => {
+                    unsafe { drop_in_place(new_slice[0..i].as_mut_ptr()) }
+                    return Err(());
+                },
+            };
+        }
+
+        Ok(Self {
+            data: db,
+            size: self.len(),
+        })
+
+    }
+}
+
+impl<T: Sized, const STEP: usize> Deref for Vec<T, STEP> {
+    type Target = [T];
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.as_slice_unchecked()
+    }
+}
+
+impl<T: Sized, const STEP: usize> DerefMut for Vec<T, STEP> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut_slice_unchecked()
+    }
+}
+
+impl<T: Sized, const STEP: usize> Default for Vec<T, STEP> {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+
+
+
+/*use core::{alloc::{GlobalAlloc, Layout, LayoutError}, ascii, fmt::Write, hint::spin_loop, mem::ManuallyDrop, ops::RangeBounds, ptr::{self, drop_in_place, null, null_mut, NonNull}, slice};
 
 use core::ops::Bound::{Included, Excluded, Unbounded};
 
 use core::cmp::Ordering::{self, Less, Greater, Equal};
 
-use crate::{hang, TryClone, ALLOCATOR};
+use crate::{TryClone, ALLOCATOR, convert::Align};
 
 use core::borrow::{Borrow, BorrowMut};
 
 use core::ops::{Deref, DerefMut};
 
-pub mod iterators;
 
-pub use iterators::*;
+
+
+/// Custom implementation of `std::Vec` - dynamic array
+/// 
+/// - Uses exponencial growth
+pub struct Vec<T: Sized> {
+    data: Option<NonNull<T>>,
+    layout: Layout, //  memory layout
+    size: u32,  //  size of the vector
+    cap: u32,   //  capacity in elements
+}
+
+
+impl<T: Sized> Vec<T> {
+
+    const fn layout_for(capacity: usize) -> Layout {
+        let size = unsafe {
+            size_of::<T>().unchecked_mul(Self::cap_next(capacity as u32) as usize)
+        };
+        
+        unsafe { Layout::from_size_align_unchecked(size, align_of::<T>()) }
+    }
+
+    const fn layout_for_exact(capacity: usize) -> Layout {
+        let size = unsafe {
+            size_of::<T>().unchecked_mul(capacity)
+        };
+
+        unsafe { Layout::from_size_align_unchecked(size, align_of::<T>()) }
+    }
+
+    /// aligns capacity for exponencional growth
+    pub(crate) const fn cap_next(cap: u32) -> u32 {
+        cap.next_power_of_two()
+    }
+
+    /// Constructs empty `Vec<T>` with no data
+    pub const fn new() -> Self {
+        Self {
+            data: None,
+            layout: Layout::new::<T>(),
+            size: 0,
+            cap: 0,
+        }
+    }
+
+    /// Constructs `Vec<T>` with some elements allocated
+    /// - **panics** if allocation fails
+    pub fn with_capaity(capacity: usize) -> Self {
+        let cap = Self::cap_next(capacity as u32);
+        let l = Self::layout_for(capacity);
+        let data = unsafe {
+            ALLOCATOR.alloc(l)
+        } as *mut T;
+
+        assert!(!data.is_null(), "failed to allocate data for Vec");
+
+        Self {
+            data: Some(unsafe { NonNull::new_unchecked(data) }),
+            layout: l,
+            size: 0,
+            cap: ,
+        }
+    }
+
+    /// Tries to construct `Vec<T>` with some capacity
+    /// - returns `Err` if allocation fails
+    pub fn try_with_capacity(capacity: usize) -> Result<Self, ()> {
+        let l = Self::layout_for(capacity);
+        let data = unsafe {
+            ALLOCATOR.alloc(l)
+        } as *mut T;
+
+        if data.is_null() {
+            return Err(());
+        }
+
+        Ok(Self {
+            data: Some(unsafe { NonNull::new_unchecked(data) }),
+            layout: l,
+            size: 0,
+        })
+    }
+
+    pub unsafe fn from_raw_parts(ptr: NonNull<T>, len: usize, layout: Layout) -> Self {
+        Self {
+            data: Some(ptr),
+            layout,
+            size: len as u32,
+        }
+    }
+
+    /// Reserves capacity for at least additional more elements 
+    /// - capacity will be greater or equal to `self.len() + additional`
+    /// - **panics** if allocation fails
+    pub fn reserve(&mut self, additional: usize) {
+
+        if self.data.is_some() {
+
+            if self.len() + additional > self.capacity() {
+                //  reallocate data
+
+                let l = Self::layout_for(self.len() + additional);
+                let data = unsafe {
+                    let d = self.data.unwrap().as_ptr();
+                    ALLOCATOR.realloc_layout(d as *mut u8, self.layout, l)
+                } as *mut T;
+
+                assert!(!data.is_null(), "failed to reallocate data for Vec");
+
+                self.data = Some(unsafe { NonNull::new_unchecked(data) });
+                self.layout = l;
+
+            }
+            //  else OK
+
+        } else {
+            //  allocate data
+
+            let l = Self::layout_for(additional);
+
+            let data = unsafe {
+                ALLOCATOR.alloc(l)
+            } as *mut T;
+
+            assert!(!data.is_null(), "failed to allocate data for Vec");
+
+            self.data = Some(unsafe { NonNull::new_unchecked(data) });
+            self.layout = l;
+            self.size = 0;
+        }
+
+    }
+
+    /// Tries to reserve capacity for at least additional more elements 
+    /// - capacity will be greater or equal to `self.len() + additional`
+    /// - returns `Err` if allocation fails
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), ()> {
+
+        if self.data.is_some() {
+
+            if self.len() + additional > self.capacity() {
+                //  reallocate data
+
+                let l = Self::layout_for(self.len() + additional);
+                let data = unsafe {
+                    let d = self.data.unwrap().as_ptr();
+                    ALLOCATOR.realloc_layout(d as *mut u8, self.layout, l)
+                } as *mut T;
+
+                if data.is_null() {
+                    return Err(());
+                }
+
+                self.data = Some(unsafe { NonNull::new_unchecked(data) });
+                self.layout = l;
+
+            }
+
+            Ok(())
+
+        } else {
+            //  allocate data
+
+            let l = Self::layout_for(additional);
+
+            let data = unsafe {
+                ALLOCATOR.alloc(l)
+            } as *mut T;
+
+            if data.is_null() {
+                return Err(());
+            }
+
+            self.data = Some(unsafe { NonNull::new_unchecked(data) });
+            self.layout = l;
+            self.size = 0;
+
+            Ok(())
+        }
+
+    }
+
+
+
+    /// Reserves minimum capacity for at least additional more elements 
+    /// - capacity will be greater or equal to `self.len() + additional`
+    /// - **panics** if allocation fails
+    pub fn reserve_exact(&mut self, additional: usize) {
+
+        if self.data.is_some() {
+
+            if self.len() + additional > self.capacity() {
+                //  reallocate data
+
+                let l = Self::layout_for_exact(self.len() + additional);
+                let data = unsafe {
+                    let d = self.data.unwrap().as_ptr();
+                    ALLOCATOR.realloc_layout(d as *mut u8, self.layout, l)
+                } as *mut T;
+
+                assert!(!data.is_null(), "failed to reallocate data for Vec");
+
+                self.data = Some(unsafe { NonNull::new_unchecked(data) });
+                self.layout = l;
+
+            }
+            //  else OK
+
+        } else {
+            //  allocate data
+
+            let l = Self::layout_for_exact(additional);
+
+            let data = unsafe {
+                ALLOCATOR.alloc(l)
+            } as *mut T;
+
+            assert!(!data.is_null(), "failed to allocate data for Vec");
+
+            self.data = Some(unsafe { NonNull::new_unchecked(data) });
+            self.layout = l;
+            self.size = 0;
+        }
+
+    }
+
+    /// Tries to reserve minimum capacity for at least additional more elements 
+    /// - capacity will be greater or equal to `self.len() + additional`
+    /// - **panics** if allocation fails
+    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), ()> {
+
+        if self.data.is_some() {
+
+            if self.len() + additional > self.capacity() {
+                //  reallocate data
+
+                let l = Self::layout_for_exact(self.len() + additional);
+                let data = unsafe {
+                    let d = self.data.unwrap().as_ptr();
+                    ALLOCATOR.realloc_layout(d as *mut u8, self.layout, l)
+                } as *mut T;
+
+                if data.is_null() {
+                    return Err(());
+                }
+
+                self.data = Some(unsafe { NonNull::new_unchecked(data) });
+                self.layout = l;
+
+            }
+            //  else OK
+
+            Ok(())
+
+        } else {
+            //  allocate data
+
+            let l = Self::layout_for_exact(additional);
+
+            let data = unsafe {
+                ALLOCATOR.alloc(l)
+            } as *mut T;
+
+            if data.is_null() {
+                return Err(());
+            }
+
+            self.data = Some(unsafe { NonNull::new_unchecked(data) });
+            self.layout = l;
+            self.size = 0;
+
+            Ok(())
+        }
+
+    }
+
+
+    pub fn push(&mut self, val: T) {
+
+        if self.len() == self.capacity() {
+            self.reserve(1);
+        }
+
+        unsafe {
+            self.data.unwrap().add(self.len()).write(val)
+        }
+        self.size += 1;
+
+    }
+
+
+
+
+}
+
+
+impl<T: Sized> Vec<T> {
+
+    /// Reveals size of the vector in elements
+    #[inline(always)]
+    pub const fn len(&self) -> usize {
+        self.size as usize
+    }
+
+    /// Returns count of allocated
+    #[inline(always)]
+    pub const fn capacity(&self) -> usize {
+        self.layout.size() as usize
+    }
+
+
+    /// Returns content of the vector as slice
+    /// - panics if vector does not contain any data
+    #[inline(always)]
+    pub const fn as_slice(&self) -> &[T] {
+        unsafe {
+            slice::from_raw_parts(self.data.expect("Vec does not contain any data")
+            .as_ptr(), self.len())
+        }
+    }
+
+    /// Returns content of the vector as mutable slice
+    /// - panics if vector does not contain any data
+    pub const fn as_mut_slice(&mut self) -> &mut [T] {
+        unsafe {
+            slice::from_raw_parts_mut(self.data.expect("Vec does not contain any data")
+            .as_ptr(), self.len())
+        }
+    }
+
+    /// Gets range of elements from the vector
+    /// - returns `None` if vector does not contain any data or range is out of bounds
+    pub fn get<R>(&self, range: R) -> Option<&[T]>
+    where R: RangeBounds<usize> {
+
+        if let Some(data) = self.data {
+
+            let (start, end) = self.handle_bounds(&range);
+
+            if start > self.len() || end > self.len() {
+                return None;
+            }
+
+            Some(unsafe { slice::from_raw_parts(data.add(start).as_ptr(), end - start) })
+        } else {
+            None
+        }
+    }
+
+    /// Gets range of mutable elements from the vector
+    /// - returns `None` if vector does not contain any data ot range is out of bounds
+    pub fn get_mut<R>(&mut self, range: R) -> Option<&mut [T]>
+    where R: RangeBounds<usize> {
+
+        if let Some(data) = self.data {
+
+            let (start, end) = self.handle_bounds(&range);
+
+            if start > self.len() || end > self.len() {
+                return None;
+            }
+
+            Some(unsafe { slice::from_raw_parts_mut(data.add(start).as_ptr(), end - start) })
+
+        } else {
+            None
+        }
+
+    }
+
+
+    /// Indicates if vector size is 0
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.size == 0
+    }
+
+    /// Indicates if vector has any data allocated
+    #[inline(always)]
+    pub fn has_data(&self) -> bool {
+        self.data.is_some()
+    }
+
+
+    #[inline]
+    fn handle_bounds<R>(&self, range: &R) -> (usize, usize)
+    where R: RangeBounds<usize> {
+
+        (match range.start_bound() {
+            Excluded(&val) => val + 1,
+            Included(&val) => val,
+            Unbounded => 0,
+        },
+        match range.end_bound() {
+            Included(&val) => val + 1,
+            Excluded(&val) => val,
+            Unbounded => self.len(),
+        })
+    }
+
+
+
+}
+
+impl<T: Sized> Drop for Vec<T> {
+    fn drop(&mut self) {
+        if let Some(data) = self.data {
+            unsafe {
+                drop_in_place(slice::from_raw_parts_mut(data.as_ptr(), self.len()));
+                ALLOCATOR.dealloc(data.as_ptr() as *mut u8, self.layout);
+            }
+        }
+    }
+}
+
+impl<T: Sized> Default for Vec<T> {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new()
+    }
+}*/
+
 
 //  TODO: investigate Layout and reallocating (not all structs are power-of-two-sized)
 

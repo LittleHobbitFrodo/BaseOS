@@ -29,7 +29,7 @@ pub mod init;
 //  modules
 pub use mem::string::String;
 pub use mem::boxed::Box;
-//pub use mem::vec::Vec;
+pub use mem::vec::Vec;
 pub use mem::array::Array;
 pub use mem::alloc::{self, ALLOCATOR, Allocator};
 
@@ -62,7 +62,7 @@ pub fn hang() -> ! {
 pub trait TryClone {
     type Error;
     fn try_clone(&self) -> Result<Self, Self::Error>
-    where Self: Sized, Self::Error: Default;
+    where Self: Sized;
 }
 
 /// # Nothing

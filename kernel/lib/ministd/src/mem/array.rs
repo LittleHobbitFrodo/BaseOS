@@ -5,7 +5,7 @@
 // this file simplyfies array declaration and management
 
 use core::alloc::Layout;
-use core::mem::{self, ManuallyDrop, MaybeUninit};
+use core::mem::{ManuallyDrop, MaybeUninit};
 use core::ptr::{drop_in_place, NonNull};
 use core::alloc::GlobalAlloc;
 use crate::mem::alloc::ALLOCATOR;
@@ -50,7 +50,7 @@ impl<T: Sized> Array<T> {
     }
 
     /// Allocates array on the heap and sets all values to `f()`
-    /// - panics if allocation fails
+    /// - **panics** if allocation fails
     pub fn new_with<F>(f: F, size: usize) -> Self
     where F: Fn(usize) -> T {
         let data = unsafe {
@@ -93,7 +93,7 @@ impl<T: Sized> Array<T> {
 
 
     /// Allocates array on the heap and checks for values returned by `f()`
-    /// - panics if allocation or `f()` fails
+    /// - **panics** if allocation or `f()` fails
     pub fn new_with_checked<F, E>(f: F, size: usize) -> Self
     where F: Fn(usize) -> Result<T, E> {
         let data = unsafe {
@@ -145,7 +145,7 @@ impl<T: Sized> Array<T> {
 
 
     /// Allocates array on heap, returning it unitialized
-    /// - panics if allocation fails
+    /// - **panics** if allocation fails
     pub fn new_uninit(size: usize) -> Array<MaybeUninit<T>> {
         let data = unsafe {
             ALLOCATOR.alloc(Self::layout(size))
@@ -177,7 +177,7 @@ impl<T: Sized> Array<T> {
     }
 
     /// Allocates array on heap while forcing all bytes to 0
-    /// - panics if allocation fails
+    /// - **panics** if allocation fails
     pub fn new_zeroed(size: usize) -> Array<MaybeUninit<T>> {
         let data = unsafe {
             ALLOCATOR.alloc_zeroed(Self::layout(size))
@@ -210,10 +210,13 @@ impl<T: Sized> Array<T> {
     }
 
     /// Returns iterator to Array
+    #[inline(always)]
     pub fn iter<'l>(&'l self) -> core::slice::Iter<'l, T> {
         self.as_slice().iter()
     }
 
+    /// Returns mutable iterator to Array
+    #[inline(always)]
     pub fn iter_mut<'l>(&'l mut self) -> core::slice::IterMut<'l, T> {
         self.as_mut_slice().iter_mut()
     }
@@ -223,6 +226,8 @@ impl<T: Sized> Array<T> {
 
 impl<T: Sized> Array<MaybeUninit<T>> {
 
+    /// Tells the compiler that data are initialized
+    #[inline]
     pub unsafe fn assume_init(self) -> Array<T> {
         let m = ManuallyDrop::new(self);
         Array {
@@ -236,6 +241,7 @@ impl<T: Sized> Array<MaybeUninit<T>> {
 impl<T: Sized> Array<T> {
 
     /// Returns number of Elements in the array
+    #[inline(always)]
     pub const fn len(&self) -> usize {
         self.size
     }
@@ -259,11 +265,13 @@ impl<T: Sized> Array<T> {
     }
 
     /// Returns array as slice of `T`
+    #[inline]
     pub const fn as_slice(&self) -> &[T] {
         unsafe { slice::from_raw_parts(self.data.as_ptr(), self.size) }
     }
 
     /// Returns array as mutable slice of `T`
+    #[inline]
     pub const fn as_mut_slice(&mut self) -> &mut [T] {
         unsafe { slice::from_raw_parts_mut(self.data.as_ptr(), self.size) }
     }
@@ -273,7 +281,7 @@ impl<T: Sized> Array<T> {
     where R: RangeBounds<usize> {
         let (start, end) = self.handle_bounds(&range);
 
-        if start >= self.len() || end >= self.len() {
+        if start > self.len() || end > self.len() {
             return None;
         }
 
@@ -286,7 +294,7 @@ impl<T: Sized> Array<T> {
     where R: RangeBounds<usize> {
         let (start, end) = self.handle_bounds(&range);
 
-        if start >= self.len() || end >= self.len() {
+        if start > self.len() || end > self.len() {
             return None;
         }
 
@@ -316,7 +324,7 @@ impl<T: Sized> Array<T> {
 impl<T: Sized + Clone> Array<T> {
 
     /// Allocates array on the heap while copying all elements from the slice
-    /// - panics if allocation or `T::clone()` fails
+    /// - **panics** if allocation or `T::clone()` fails
     pub fn from_slice(slice: &[T]) -> Self {
         let data = unsafe {
             ALLOCATOR.alloc(Self::layout(slice.len()))
@@ -487,3 +495,5 @@ impl<T: Sized> IndexMut<usize> for Array<T> {
         }
     }
 }
+
+

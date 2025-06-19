@@ -18,6 +18,7 @@ pub use rosync::RoSync;
 pub mod alloc;
 pub mod boxed;
 pub mod array;
+pub mod dynamic_buffer;
 
 
 pub mod string;

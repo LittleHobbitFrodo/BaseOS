@@ -4,12 +4,12 @@
 
 //  module for kernel initialization
 
+use ministd::mem::dynamic_buffer::DynamicBuffer;
 use ministd::renderer::RENDERER;
 use core::mem::MaybeUninit;
-use ministd::{Array, String};
 use ministd::{io};
 use ministd::{println, locked_println, init};
-use ministd::Box;
+use ministd::{Box, Array, Vec, String};
 
 fn init() -> Result<(), ()> {
 
@@ -21,20 +21,13 @@ fn init() -> Result<(), ()> {
         panic!("failed to initialize heap");
     }
 
-    let a = unsafe { Array::assume_init(Array::<usize>::new_uninit(8)) };
+    let mut v: Vec<u32> = Vec::new();
 
-    println!("whole:");
-    for (i, item) in a.iter().enumerate() {
-        println!("arr[{i}]: {item}");
-    }
+    v.push(69);
+    v.push(420);
 
-    let slice = if let Some(slice) = a.get(2..=6) { slice } else {
-        panic!("failed to get slice");
-    };
-
-    println!("\n\n\nslice:");
-    for (i, item) in slice.iter().enumerate() {
-        println!("slice[{i}]: {item}");
+    for (i, item) in v.iter().enumerate() {
+        println!("{i}: {item}");
     }
 
     Ok(())
