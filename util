@@ -47,18 +47,83 @@ if [ "$1" != conf ]; then
     fi
 fi
 
-args="${@:2}"
+args="${@:1}"
 subcmd=$1
 
+IFS="+"
+for i in $args; do
 
-if [ -e "$SCRIPTS/$subcmd" ]; then
-    $SCRIPTS/$subcmd $args
-else
-    error "subcommand '$subcmd' does not exist"
-    $SCRIPTS/help
-    exit 1
-fi
+    #   delete spaces at the start and at the end
+    i="${i#"${i%%[![:space:]]*}"}"   # remove leading
+    i="${i%"${i##*[![:space:]]}"}"  # remove trailing
 
-if [ "$subcmd" == build ]; then
-    $SCRIPTS/mkiso
-fi
+    IFS=" "
+    subcmd="${i%% *}"   #   first word
+
+    if [ "$(echo "$i" | wc -w)" -gt 1 ]; then
+        #   has parameters
+
+        cmd_args="${i#* }"
+
+        if [ -e "$SCRIPTS/$subcmd" ]; then
+            $SCRIPTS/$subcmd $cmd_args
+        else
+            error "subcommand '$subcmd' does not exist"
+            $SCRIPTS/help
+            exit 1
+        fi
+
+        if [ "$subcmd" == build ]; then
+            $SCRIPTS/mkiso
+        fi
+
+    else
+        #   no parameters
+        if [ -e "$SCRIPTS/$subcmd" ]; then
+            $SCRIPTS/$subcmd
+        else
+            error "subcommand '$subcmd' does not exist"
+            $SCRIPTS/help
+            exit 1
+        fi
+
+        if [ "$subcmd" == build ]; then
+            $SCRIPTS/mkiso
+        fi
+    fi
+
+    IFS="+"
+done
+
+# echo util: args: "${args[@]}"
+
+# IFS='+' read -ra parts <<< "${args[@]}"
+# echo "Original: ${args[@]}"
+# parts="${args[@]}"
+# for part in "${parts[@]}"; do
+
+#     #subcmd=$part
+#     subcmd="${part%% *}"
+#     #part="${part:1}"
+#     part="${part#* }"
+
+#     echo; echo
+#     echo subcmd: $subcmd
+#     echo part: $part
+#     continue
+
+#     if [ -e "$SCRIPTS/$subcmd" ]; then
+#         $SCRIPTS/$subcmd $part
+#     else
+#         error "subcommand '$subcmd' does not exist"
+#         $SCRIPTS/help
+#         exit 1
+#     fi
+
+#     if [ "$subcmd" == build ]; then
+#         $SCRIPTS/mkiso
+#     fi
+
+# done
+
+exit
