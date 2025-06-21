@@ -49,9 +49,6 @@ for arg in "$@"; do
                 arch+=("$i")
             fi
         ;;
-        "-no-download")
-            download=false
-        ;;
         *)
             error "'$arg' is not valid architecture or language"
             exit 1
@@ -80,24 +77,43 @@ for i in "${arch[@]}"; do
 
     compiler=NONE
     linker=NONE
-    # #   check the compiler
+
+    #   check for compiler and linker
     case "$lang" in
         c)
             for cc in $c_compiler_midnames; do
+                echo checking compiler for : "$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
+                echo checking linker for : "$(get_arch $i)$cc$(echo -n ld)"
                 if [ $compiler == NONE ]; then
-                    compiler="$(search_path "$(get_arch $i)$cc$(echo gcc)")"
+                    compiler="$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
                 fi
+
                 if [ $linker == NONE ]; then
-                    linker="$(search_path "$(get_arch $i)$cc$(echo ld)")"
+                    linker="$(search_path "$(get_arch $i)$cc$(echo -n ld)")"
                 fi
                 if [[ "$compiler" != NONE && "$linker" != NONE ]]; then
+                    note "using $(blue "$compiler") as C compiler"
+                    note "using $(blue "$linker") as linker"
                     break
                 fi
             done
         ;;
         rust)
             compiler="$(search_path cargo)"
-            linker="$(search_path "$(get_arch $i)-elf-ld")"
+
+            #linker="$(search_path "$(get_arch $i)-elf-ld")"
+
+            for cc in $c_compiler_midnames; do
+                if [ $linker == NONE ]; then
+                    linker="$(search_path "$(get_arch $i)$cc$(echo -n ld)")"
+                fi
+
+                if [ "$linker" != NONE ]; then
+                    note "using $(blue "$linker") as linker"
+                    break
+                fi
+
+            done
         ;;
     esac
     qemu="$(search_path "qemu-system-$(get_arch $i)")"
@@ -146,6 +162,33 @@ if [ ! -e $OS_CONFIG ]; then
     echo "version=0.0.1" >> $OS_CONFIG
     echo "release=BaseOS-v0.0.1" >> $OS_CONFIG
 fi
+
+#   TODO: copy .cargo/config-template.toml to .cargo/config.toml and change the value
+if [ ! -e "$PWD/kernel/.cargo/" ]; then
+    error "cargo specific configuration is missing ($(red "./kernel/.cargo/") directory is missing)"
+    note "please download $(yellow "kernel/.cargo/") directory from the BaseOS github repository"
+    echo "    https://github.com/LittleHobbitFrodo/BaseOS.git"
+    exit 2
+fi
+
+if [ ! -e "$PWD/kernel/.cargo/config-template.toml" ]; then
+    error "configuration template ($(red "./kernel/.cargo/config-template.toml")) is missing, please download it from the BaseOS github repository"
+    echo "  https://github.com/LittleHobbitFrodo/BaseOS.git"
+    exit 2
+fi
+
+cp "$PWD/kernel/.cargo/config-template.toml" "$PWD/kernel/.cargo/config.toml"
+if [ "$?" != 0 ]; then error "failed to copy cargo config template"; exit 2; fi
+
+sed -i "s|UTIL_LINKER_HERE|$PWD/kernel/symlink-linker-ld|g" "$PWD/kernel/.cargo/config.toml"
+
+if [ "$?" == 0 ]; then
+    note "note created cargo configuration file"
+else
+    error "failed to create cargo configuration file"
+    exit 2
+fi
+
 
 if [ "$all_tools_installed" != true ]; then
     warning "some development dependencies are missing, try running $(green "./util dep install") and then $(green "./util reconf")"

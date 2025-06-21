@@ -39,8 +39,6 @@ for i in $CMD; do
             echo "  $(yellow 'configures your project')"
             echo "  configures CPU architecture, programming language and tools"
             echo
-            echo "  append $(blue '-no-download') to forbid downloading language branches"
-            echo
             echo "  supported CPU architectures: $(green x86_64), $(red arm64)"
             echo "  supported programming languages: $(green C), $(green rust)"
             echo

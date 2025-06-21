@@ -17,6 +17,7 @@ path="src/prelude.rs"
 
 
 [profile.release]
+linker="rust-lld"
 opt-level = 3
 panic="abort"
 

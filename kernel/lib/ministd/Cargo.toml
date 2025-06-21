@@ -9,3 +9,4 @@ limine_rs={path="../limine"}
 bootloader={path="../bootloader"}
 buddy_system_allocator={path="../allocator"}
 spin={path="../spin"}
+
