@@ -1,0 +1,12 @@
+[package]
+name = "ministd"
+version = "0.1.0"
+edition = "2024"
+
+
+[dependencies]
+limine_rs={path="../limine"}
+bootloader={path="../bootloader"}
+buddy_system_allocator={path="../allocator"}
+spin={path="../spin"}
+

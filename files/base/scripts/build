@@ -1,0 +1,76 @@
+#!/bin/bash
+
+source "$PWD/files/base/scripts.conf"
+
+archs=""
+debug=false
+if [ "$#" != 0 ]; then
+    for arg in "$@"; do
+        a="$(echo $arg | tr '[:upper:]' '[:lower:]')"
+        case $a in
+            debug)
+                debug=true
+            ;;
+            x86_64)
+                archs="$archs x86_64"
+            ;;
+            arm64)
+                archs="$archs aarch64"
+            ;;
+        esac
+    done
+else
+    archs="$arch"
+fi
+
+cargo_params="--target-dir bin --verbose --target"
+
+IFS=" "
+for a in $archs; do
+
+    note "building kernel for $a target"
+
+    if [ ! -e ./tmp/kernel ]; then
+        mkdir -p ./tmp/kernel
+    fi
+
+    if [ -e "$(arch_config $a)" ]; then
+        source $(arch_config $a)
+    else
+        error "configuration for $a target is missing"
+        exit 2
+    fi
+    
+
+
+
+    #   compile rust code
+
+    cd ./kernel
+        if [ "$debug" == true ]; then
+            $compiler build $cargo_params "$(get_arch $a)-unknown-none"
+        else
+            $compiler build --release $cargo_params "$(get_arch $a)-unknown-none"
+        fi
+
+        if [ "$?" != 0 ]; then
+            error "failed to compile kernel"
+            exit 2
+        fi
+
+    cd ..
+
+    cp $PWD/kernel/bin/$(get_arch $a)-unknown-none/release/baseOS ./tmp/kernel/kernel.o
+
+
+    #   link kernel
+    #find "./tmp/kernel" -name "*.o" -print0 | xargs -0 $linker -m "elf_$(get_arch $a)" -nostdlib -static --no-dynamic-linker -z text -z max-page-size=0x1000 -T "$PWD/kernel/linker.ld" -o $(kernel_full $a)
+    #if [ "$?" != 0 ]; then
+    #    error "failed to link kernel"
+    #    exit 2
+    #fi
+    cp ./tmp/kernel/kernel.o $(kernel_full $a)
+    
+    rm -rf ./tmp/*
+
+done

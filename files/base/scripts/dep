@@ -1,0 +1,324 @@
+#!/bin/bash
+
+source "$PWD/files/base/scripts.conf"
+
+
+function is_excluded() {
+    old_ifs="$IFS"
+    IFS=" "
+    for i in "${excluded[@]}"; do
+        if [ "${excluded[$i]}" == "$1" ]; then
+            IFS="$old_ifs"
+            echo true
+            return
+        fi
+    done
+    IFS="$old_ifs"
+    echo false
+}
+
+function check_package() {     #   returns if package should be added to the list regardles operation mode
+    #   $1 = program name to search
+    if [ $(is_excluded $2) == true ]; then
+        echo EXCLUDED
+        return
+    fi
+    if [ "$mode" == install ]; then
+        if [ "$(search_path "$1")" == NONE ]; then
+            echo OK
+        else
+            echo NONE
+        fi
+    else
+        if [ "$(search_path "$1")" != NONE ]; then
+            echo OK
+        else
+            echo NONE
+        fi
+    fi
+}
+
+#   check for no parameters
+if [ "$#" -eq 0 ]; then
+    error "please tell me what to do $(green "install or remove?")"
+    exit 1
+fi
+
+#   find except packages
+excluded=()
+if [ "$#" -gt 2 ]; then
+    for arg in $@; do
+        if [[ "$arg" == "exclude" ]]; then
+            collect=1
+            echo found exclude
+            continue
+        fi
+        if [[ $collect -eq 1 ]]; then
+            echo "excluding: $arg"
+            excluded+="$arg"
+        fi
+    done
+fi
+
+
+
+packages=()
+
+
+#   check if packages should be installed or removed
+case "$(echo $1 | tr '[:upper:]' '[:lower:]')" in
+    remove)
+        mode=remove
+        mode_str=removed
+    ;;
+    install)
+        mode=install
+        mode_str=installed
+    ;;
+    *) error "unknown option $arg"; exit 1 ;;
+esac
+
+#   install rust
+case $(check_package rustup rustup ) in
+    OK)
+        #   install rust
+        note "installing rustup"
+        warning "rustup installation will run script downloaded from the internet"
+
+        if [ $(ask "do you wish to proceed") == y ]; then
+            note "alright, the rustup installation will most likely need your attention"
+            for i in {5..0}; do
+                echo "starting in $i"
+                sleep 1
+            done
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+            if [ "$?" != 0 ]; then
+                error "rustup installation failed"
+                exit 2
+            fi
+
+        else
+            note "skipping rustup installation"
+        fi
+
+        echo "$(red IMPORTANT): you may need to add rustup to your path (as listed above)"
+
+        note "rustup installation successfull"
+
+        local old_ifs="$IFS"
+        IFS=" "
+        for i in $arch; do
+            a="$(get_arch $i)"
+            note "installing target for $a"
+
+            rustup target add "$i-unknown-none"
+
+            if [ "$?" != 0 ]; then
+                error "failed to install target for $i"
+                exit 2
+            fi
+
+        done
+        IFS="$old_ifs"
+
+    ;;
+    NONE)
+        note "$(blue rust) is already installed"
+    ;;
+    EXCLUDED)
+        note "$(blue rust) is excluded"
+    ;;
+esac
+
+
+case "$(uname)" in
+    Darwin)
+        #   MacOS
+        if [ $(search_path brew) == NONE ]; then
+            warning "Homebrew is not installed"
+
+            if [ "$(ask "$(yellow "would you like mo to install it")")" == y ]; then
+                /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                if [ "$?" != 0 ]; then
+                    error "Homebrew installation failed"
+                    exit 2
+                fi
+            else
+                error 'Sorry, unable to work without Homebrew on mac :('
+                exit 2
+            fi
+        fi
+
+        case $lang in
+            c)
+                binutils_postfix="gcc"
+            ;;
+            rust)
+                binutils_postfix="binutils"
+            ;;
+            *)
+                error "language $lang is not supported by dep subcommand"
+                exit 2
+            ;;
+        esac
+
+        #   find linker/compiler
+        IFS=" "
+        for i in $arch; do
+            i="$(get_arch $i)"
+            case $(check_package "$i-elf-$binutils_postfix" "$i-elf-$binutils_postfix") in
+                OK) 
+                    packages+=("$i-elf-$binutils_postfix")
+                ;;
+                NONE)
+                    note "$(blue "$i-elf-$binutils_postfix") is already $mode_str"
+                ;;
+                EXCLUDED)
+                    note "$(blue "$i-elf-$binutils_postfix") is excluded"
+                ;;
+                esac
+        done
+
+        
+
+        if [ "${#packages[@]}" -eq 0 ]; then
+            note "all packages are already $mode_str"
+            exit
+        fi
+
+        note "installing these packages: $(blue "${packages[@]}")"
+        if [ $(ask "is this OK") == y ]; then
+            brew $mode "${packages[@]}"
+
+            if [ "$?" != 0 ]; then
+                error "failed to install packages"
+                exit 2
+            fi
+
+        else
+            note "no packages were installed"
+            exit
+        fi
+
+
+    ;;
+
+    "Linux")
+        #   Gather distro information
+        source /etc/os-release
+
+
+        case $(echo "$NAME" | awk '{print $1}') in
+            "Fedora")
+
+                #   check whether to install compiler or only linker
+                case $lang in
+                    c)
+                        binutils_postfix="gcc"
+                    ;;
+                    rust)
+                        binutils_postfix="binutils"
+                    ;;
+                    *)
+                        error "language $lang is not supported by dep subcommand"
+                        exit 2
+                    ;;
+                esac
+
+                #   find linker/compiler
+                IFS=" "
+                for i in $arch; do
+                    i="$(get_arch $i)"
+
+                    case "$(check_package "qemu-system-$i" qemu)" in
+                        OK)
+                            packages="$packages qemu"
+                        ;;
+                        NONE)
+                            note "$(blue qemu) is already installed"
+                        ;;
+                        EXCLUDED)
+                            note "$(blue qemu) is excluded"
+                        ;;
+                    esac
+
+                    case "$(check_package "xorriso" xorriso)" in
+                        OK)
+                            packages="$packages xorriso"
+                        ;;
+                        NONE)
+                            note "$(blue xorriso) is already installed"
+                        ;;
+                        EXCLUDED)
+                            note "$(blue xorriso) is excluded"
+                        ;;
+                    esac
+
+                    case $(check_package "$i-linux-gnu-ld" "$binutils_postfix-$i-linux-gnu") in
+                        OK)
+                            packages=" $packages $binutils_postfix-$i-linux-gnu"
+                        ;;
+                        NONE)
+                            note "$(blue "$binutils_postfix-$i-linux-gnu") is already $mode_str"
+                        ;;
+                        EXCLUDED)
+                            note "$(blue "$binutils_postfix-$i-linux-gnu") is excluded"
+                        ;;
+                    esac
+                done
+
+                #   cc is needed for some parts of the kernel
+                case $(check_package "cc" "cc") in
+                    OK)
+                        packages="$packages rust-cc-devel"
+                    ;;
+                    NONE)
+                        note "$(blue cc) (rust-cc-devel) is already installed"
+                    ;;
+                    EXCLUDED)
+                        note "$(blue cc) (rust-cc-devel) is excluded"
+                    ;;
+                esac
+
+
+                if [ "${#packages[@]}" -eq 0 ]; then
+                    note "all packages are already $mode_str"
+                    exit
+                fi
+
+
+                note "installing these packages: $(blue "${packages[@]}")"
+                if [ $(ask "is this OK") == y ]; then
+                    note "using $(red sudo), the system may ask for password"
+                    sudo dnf $mode $packages
+
+                    if [ "$?" != 0 ]; then 
+                        error "failed to install packages"
+                        exit 2
+                    fi
+
+                else
+                    note "no packages were installed"
+                    exit
+                fi
+
+            ;;
+            "Ubuntu")
+                echo hello Ubuntu
+            ;;
+
+            *)
+                error "Sorry, your Linux distro does not seem to be supported"
+                exit 2
+            ;;
+        esac
+
+    ;;
+
+
+    *)
+        error "Sorry, your operating system does not seem to be supported"
+        exit 2
+    ;;
+esac

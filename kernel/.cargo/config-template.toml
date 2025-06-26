@@ -1,0 +1,16 @@
+[build]
+target = "x86_64-unknown-none"
+target-dir = "bin"
+
+[target.x86_64-unknown-none]
+linker = "UTIL_LINKER_HERE"
+rustflags = [
+    "-C", "opt-level=3",
+    "-C", "relocation-model=static",
+    "-C", "panic=abort",
+    "-C", "link-args=-nostdlib",
+    "-C", "link-args=-static",
+    "-C", "link-args=--no-dynamic-linker",
+    "-C", "link-args=-z text -z max-page-size=0x1000 -T linker.ld",
+    "-C", "linker=UTIL_LINKER_HERE"
+]

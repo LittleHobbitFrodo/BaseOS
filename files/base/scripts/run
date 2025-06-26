@@ -1,0 +1,55 @@
+#!/bin/bash
+
+source "$PWD/files/base/scripts.conf"
+
+debug=false
+system=""
+
+
+
+if [ "$#" != 0 ]; then
+    for arg in "$@"; do
+        i="$(echo $arg | tr '[:upper:]' '[:lower:]')"
+        case $i in
+            debug)
+                debug=true
+            ;;
+            x86_64)
+                system="$system x86_64"
+            ;;
+            arm64)
+                system="$system aarch64"
+            ;;
+        esac
+    done
+fi
+
+if [ -e "$CONFIG_PATH/qemu-parameters.conf" ]; then
+
+    if [ -n "$system" ]; then
+        arch="$system"
+    fi
+    IFS=" "
+    for i in $arch; do
+
+        iso="$PWD/files/$iso_name-$i.iso"
+
+        if [ ! -e "$iso" ]; then
+            error "iso $iso_name-$i.iso does not exist"
+            continue
+        fi
+        
+        current_arch="$i"
+        source "$(arch_config $i)"
+        source "$CONFIG_PATH/qemu-parameters.conf"
+
+        $emulator $qemu_parameters
+
+    done
+
+else
+    error "Qemu parameters are missing"
+    note "please create the $(green "$CONFIG_PATH/qemu-parameters.conf") file"
+    exit 1
+fi
+

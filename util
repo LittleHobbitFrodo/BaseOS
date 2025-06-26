@@ -1,0 +1,129 @@
+#!/bin/bash
+
+function report() {
+    status="$?"
+    if [ -n "${subcmd+x}" ]; then
+        echo "$(red "OPERATION $subcmd FAILED")"
+        if [[ -e "$SCRIPTS/$subcmd" && "$status" == 1 ]]; then
+            $SCRIPTS/help $subcmd
+        fi
+    else
+        echo "$(red "COMMAND $BASH_COMMAND FAILED")"
+    fi
+    exit 1
+}
+
+set -eEuo pipefail
+
+#   set function to call if anything fails
+trap report ERR
+
+
+source "$PWD/files/base/scripts.conf"
+
+
+#   SCRIPT ENTRY POINT
+if [ "$#" -lt 1 ]; then
+    error "no command given"
+    echo
+    $SCRIPTS/help
+    exit 1
+fi
+
+if [ "$1" != conf ]; then
+    if [ ! -e "$UTIL_CONFIG" ]; then
+        error "project is not configured"
+        echo
+        $SCRIPTS/help conf
+        exit 1
+    else
+        source $UTIL_CONFIG
+        if [ "$configured" != true ]; then
+            error "project is not configured"
+            echo
+            $SCRIPTS/help conf
+            exit 1
+        fi
+    fi
+fi
+
+args="${@:1}"
+subcmd=$1
+
+IFS="+"
+for i in $args; do
+
+    #   delete spaces at the start and at the end
+    i="${i#"${i%%[![:space:]]*}"}"   # remove leading
+    i="${i%"${i##*[![:space:]]}"}"  # remove trailing
+
+    IFS=" "
+    subcmd="${i%% *}"   #   first word
+
+    if [ "$(echo "$i" | wc -w)" -gt 1 ]; then
+        #   has parameters
+
+        cmd_args="${i#* }"
+
+        if [ -e "$SCRIPTS/$subcmd" ]; then
+            $SCRIPTS/$subcmd $cmd_args
+        else
+            error "subcommand '$subcmd' does not exist"
+            $SCRIPTS/help
+            exit 1
+        fi
+
+        if [ "$subcmd" == build ]; then
+            $SCRIPTS/mkiso
+        fi
+
+    else
+        #   no parameters
+        if [ -e "$SCRIPTS/$subcmd" ]; then
+            $SCRIPTS/$subcmd
+        else
+            error "subcommand '$subcmd' does not exist"
+            $SCRIPTS/help
+            exit 1
+        fi
+
+        if [ "$subcmd" == build ]; then
+            $SCRIPTS/mkiso
+        fi
+    fi
+
+    IFS="+"
+done
+
+# echo util: args: "${args[@]}"
+
+# IFS='+' read -ra parts <<< "${args[@]}"
+# echo "Original: ${args[@]}"
+# parts="${args[@]}"
+# for part in "${parts[@]}"; do
+
+#     #subcmd=$part
+#     subcmd="${part%% *}"
+#     #part="${part:1}"
+#     part="${part#* }"
+
+#     echo; echo
+#     echo subcmd: $subcmd
+#     echo part: $part
+#     continue
+
+#     if [ -e "$SCRIPTS/$subcmd" ]; then
+#         $SCRIPTS/$subcmd $part
+#     else
+#         error "subcommand '$subcmd' does not exist"
+#         $SCRIPTS/help
+#         exit 1
+#     fi
+
+#     if [ "$subcmd" == build ]; then
+#         $SCRIPTS/mkiso
+#     fi
+
+# done
+
+exit

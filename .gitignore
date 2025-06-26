@@ -1,0 +1,12 @@
+bin
+iso
+BaseOS-kernel-x86_64.bin
+BaseOS-x86_64.iso
+init.o
+symlink-linker-ld
+kernel.conf
+os.conf
+util-x86_64.conf
+util.conf
+target
+bootloader/build/

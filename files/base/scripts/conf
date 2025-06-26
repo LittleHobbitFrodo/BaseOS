@@ -1,0 +1,195 @@
+#!/bin/bash
+
+
+source "$PWD/files/base/scripts.conf"
+
+if [ $# -eq 0 ]; then
+    error "$(blue conf): expected at least 2 parameters: $(yellow architecture) and $(yellow language)"
+    exit 1
+fi
+
+arch=()
+lang=""
+iso_name=BaseOS     #   -<arch>.iso will be added by the build subcommand
+    #   iso files are located in the ./files directory
+all_tools_installed=true
+download=true
+main_file=NONE
+
+
+
+
+#   resolve lang and arch
+for arg in "$@"; do
+    i="$(echo $arg | tr '[:upper:]' '[:lower:]')"
+    case $i in
+        c)
+            if [ -z "$lang" ]; then
+                lang="$i"
+            else
+                error "only one language is supported"
+                exit 1
+            fi
+        ;;
+        rust)
+            if [ -z "$lang" ]; then
+                lang="$i"
+            else
+                error "only one language is supported"
+                exit 1
+            fi
+        ;;
+        x86_64)
+            if [[ ! " ${arch[@]} " =~ " ${i} " ]]; then
+                arch+=("$i")
+            fi
+        ;;
+        arm64)
+            if [[ ! " ${arch[@]} " =~ " ${i} " ]]; then
+                arch+=("$i")
+            fi
+        ;;
+        *)
+            error "'$arg' is not valid architecture or language"
+            exit 1
+        ;;
+    esac
+done
+
+if [[ "$lang" == c && "$main_file" == NONE ]]; then
+    main_file="./kernel/src/init/init.c"
+fi
+
+note "creating utility configuration"
+
+echo "# This is util configuration, please do not change manually" > $UTIL_CONFIG
+echo "configured=true" >> $UTIL_CONFIG
+echo "xorriso=$(search_path xorriso)" >> $UTIL_CONFIG
+echo "arch=\"${arch[@]}\"" >> $UTIL_CONFIG
+echo "lang=$lang" >> $UTIL_CONFIG
+echo "iso_name=$iso_name" >> $UTIL_CONFIG
+echo "main_file=$main_file" >> $UTIL_CONFIG
+
+
+c_compiler_midnames="-elf- -linux-gnu- -none-linux-gnu-"
+IFS=" "
+for i in "${arch[@]}"; do
+
+    compiler=NONE
+    linker=NONE
+
+    #   check for compiler and linker
+    case "$lang" in
+        c)
+            for cc in $c_compiler_midnames; do
+                echo checking compiler for : "$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
+                echo checking linker for : "$(get_arch $i)$cc$(echo -n ld)"
+                if [ $compiler == NONE ]; then
+                    compiler="$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
+                fi
+
+                if [ $linker == NONE ]; then
+                    linker="$(search_path "$(get_arch $i)$cc$(echo -n ld)")"
+                fi
+                if [[ "$compiler" != NONE && "$linker" != NONE ]]; then
+                    note "using $(blue "$compiler") as C compiler"
+                    note "using $(blue "$linker") as linker"
+                    break
+                fi
+            done
+        ;;
+        rust)
+            compiler="$(search_path cargo)"
+
+            #linker="$(search_path "$(get_arch $i)-elf-ld")"
+
+            for cc in $c_compiler_midnames; do
+                if [ $linker == NONE ]; then
+                    linker="$(search_path "$(get_arch $i)$cc$(echo -n ld)")"
+                fi
+
+                if [ "$linker" != NONE ]; then
+                    note "using $(blue "$linker") as linker"
+                    break
+                fi
+
+            done
+        ;;
+    esac
+    qemu="$(search_path "qemu-system-$(get_arch $i)")"
+
+    config_file="$(arch_config $i)"
+
+    if [ "$compiler" == NONE ]; then
+        warning "compiler for the $i target is missing"
+        all_tools_installed=false
+    fi
+
+    if [ "$linker" == NONE ]; then
+        warning "linker for the $i target is missing"
+        all_tools_installed=false
+    else
+        if [ -e "./kernel/symlink-linker-ld" ]; then
+            rm ./kernel/symlink-linker-ld
+        fi
+        ln -s "$linker" ./kernel/symlink-linker-ld
+    fi
+
+    if [ "$qemu" == NONE ]; then
+        warning "emulator fot the $i target is missong"
+        all_tools_installed=false
+    fi
+
+    note "creating configuration for the $i target"
+
+    #   flush the config
+    echo "# This is util $i target configuration, please do not edit manually" > $config_file
+    echo "# Paths are relative to project root" >> $config_file
+    echo "compiler=$compiler" >> $config_file
+    echo "linker=$linker" >> $config_file
+    echo "emulator=$qemu" >> $config_file
+
+done
+
+if [ ! -e $KERNEL_CONFIG ]; then
+    echo "name=BaseOS-kernel" > $KERNEL_CONFIG
+    echo "version=0.0.1" >> $KERNEL_CONFIG
+    echo "release=BaseOS-v0.0.1" >> $KERNEL_CONFIG
+fi
+
+if [ ! -e $OS_CONFIG ]; then
+    echo "name=BaseOS" > $OS_CONFIG
+    echo "version=0.0.1" >> $OS_CONFIG
+    echo "release=BaseOS-v0.0.1" >> $OS_CONFIG
+fi
+
+#   TODO: copy .cargo/config-template.toml to .cargo/config.toml and change the value
+if [ ! -e "$PWD/kernel/.cargo/" ]; then
+    error "cargo specific configuration is missing ($(red "./kernel/.cargo/") directory is missing)"
+    note "please download $(yellow "kernel/.cargo/") directory from the BaseOS github repository"
+    echo "    https://github.com/LittleHobbitFrodo/BaseOS.git"
+    exit 2
+fi
+
+if [ ! -e "$PWD/kernel/.cargo/config-template.toml" ]; then
+    error "configuration template ($(red "./kernel/.cargo/config-template.toml")) is missing, please download it from the BaseOS github repository"
+    echo "  https://github.com/LittleHobbitFrodo/BaseOS.git"
+    exit 2
+fi
+
+cp "$PWD/kernel/.cargo/config-template.toml" "$PWD/kernel/.cargo/config.toml"
+if [ "$?" != 0 ]; then error "failed to copy cargo config template"; exit 2; fi
+
+sed -i "s|UTIL_LINKER_HERE|$PWD/kernel/symlink-linker-ld|g" "$PWD/kernel/.cargo/config.toml"
+
+if [ "$?" == 0 ]; then
+    note "note created cargo configuration file"
+else
+    error "failed to create cargo configuration file"
+    exit 2
+fi
+
+
+if [ "$all_tools_installed" != true ]; then
+    warning "some development dependencies are missing, try running $(green "./util dep install") and then $(green "./util reconf")"
+fi

@@ -1,0 +1,18 @@
+#!/bin/bash
+
+source "$PWD/files/base/scripts.conf"
+
+source $UTIL_CONFIG
+
+if [ $configured != "true" ]; then
+    error "project is not configured, run $(green "./util conf")"
+    exit 1
+fi
+
+echo >> $UTIL_CONFIG
+echo "configured=false" >> $UTIL_CONFIG
+
+$SCRIPTS/conf $lang $arch
+
+
+

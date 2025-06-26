@@ -1,0 +1,37 @@
+[package]
+name = "baseOS"
+description="on OS template on which to build"
+version = "0.0.1"
+edition = "2024"
+license="MIT"
+#documentation = "" TODO!
+keywords=["OS", "template", "ministd"]
+authors = [
+    "LittleHobbitFrodo <https://github.com/LittleHobbitFrodo>"
+]
+
+
+[[bin]]
+name="baseOS"
+path="src/prelude.rs"
+
+
+[profile.release]
+linker="rust-lld"
+opt-level = 3
+panic="abort"
+
+
+[profile.dev]
+opt-level=1
+panic="abort"
+
+
+
+[dependencies]
+#   ministd crate
+ministd={path="lib/ministd"}
+limine_rs={path="lib/limine"}
+bootloader={path="lib/bootloader"}
+buddy_system_allocator={path="lib/allocator"}
+

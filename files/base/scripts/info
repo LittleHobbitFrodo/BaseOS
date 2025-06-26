@@ -1,0 +1,86 @@
+#!/bin/bash
+
+
+source "$PWD/files/base/scripts.conf"
+
+function print_arch() {
+    if [ $printed_arch != false ]; then
+        return
+    fi
+    old_ifs="$IFS"
+    IFS=" "
+    for a in $arch; do
+        echo "$($1 arch):         $a"
+    done
+    IFS="$old_ifs"
+    printed_arch=true
+}
+
+
+IFS=" "
+source $UTIL_CONFIG
+
+options=""
+if [ "$#" -eq 0 ]; then
+    options="project os kernel"     #   all
+else
+    options="$@"
+fi
+
+
+printed_arch=false
+
+for i in $options; do
+    case $(echo $i | tr '[:upper:]' '[:lower:]') in
+        os)
+            source $OS_CONFIG
+            echo "$(yellow OS):           $name"
+            echo "$(yellow version):      $version"
+            echo "$(yellow release):      $release"
+            print_arch yellow
+        ;;
+        kernel)
+            source $KERNEL_CONFIG
+            echo "$(blue Kernel)"
+            echo "$(blue name):         $name"
+            echo "$(blue version):      $version"
+            echo "$(blue release):      $release"
+            echo "$(blue language):     $lang"
+            print_arch blue
+            if [ ! -e "../rust/kernel" ]; then
+                continue
+            fi
+            echo
+
+            echo "$(blue Code)"
+            case $lang in
+                rust)
+                    find '../rust/kernel/' -type d -depth 1 -print0 | while IFS= read -r -d '' i; do
+                        if [[ $(basename $i) == bin || $(basename $i) == .cargo ]]; then
+                            continue
+                        fi
+                        files="$(find $i -type f | wc -l)"
+                        local_lines=$(find "$i/" -type f -exec wc -l {} + | tail --lines 1)
+                        local_lines=$(echo $local_lines | awk '{print $1}')
+                        case $(basename $i) in
+                            src)
+                                echo "$(blue source):       $local_lines lines, $files files"
+                            ;;
+                            lib)
+                                echo "$(blue lib):          $local_lines lines, $files files"
+                            ;;
+                            *)
+                                echo "$(blue other):        $local_lines lines, $files files"
+                            ;;
+                        esac
+                    done
+                    #find "../rust/kernel" \( -path "../rust/kernel/bin" -o -path "../rust/kernel/.cargo" \) -prune -false -o -type f -print0 | while IFS= read -r -d '' file; do
+
+                    #done
+                ;;
+            esac
+        ;;
+    esac
+    echo
+    echo
+done

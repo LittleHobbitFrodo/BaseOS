@@ -1,0 +1,114 @@
+#!/bin/bash
+
+source "$PWD/files/base/scripts.conf"
+
+if [ "$#" -eq 0 ]; then
+    echo "$(green ./util) is simple script used to build and manage your OS project
+    $(note "util is meant to be run only in project root directory")"
+echo
+echo "subcommands:
+    $(blue info)                - show information about project
+    $(blue conf) <arch/lang>    - configures the environment and finds needed tools ($(red "needs internet connection"))
+    $(blue reconf)              - reconfigures the project (using different tools, ...)
+    $(blue build)               - builds the OS
+    $(blue run)                 - runs the OS in emulator
+    $(blue dep)                 - installs or removes the tools needed to build and run the operating system ($(red "needs internet connection"))
+    $(blue change)              - allows you to change project info
+    $(blue mkiso)               - creates bootable ISO for your OS"
+echo
+echo "$(magenta NOTE ): for more info use ./util help <subcommands>
+    for example: $(green "./util help build run") will show information about the $(blue build) and $(blue run) subcommand"
+
+echo
+
+echo "$(magenta NOTE): you can run multiple subcommands with $(green util)
+    for example: $(green ./util) $(blue dep install) + $(blue "reconf") will install dependencies and reconfigure the project in one command"
+
+else
+    CMD="$*"
+fi
+
+IFS=' '
+
+
+for i in $CMD; do
+    case $i in 
+        
+        info)
+            echo "$(green ./util) $(blue info)"
+            echo "  $(yellow 'prints information about your OS project')"
+            echo "  $(green ./util) $(blue "info os") prints information about OS"
+            echo "  $(green ./util) $(blue "info kernel") prints information about kernel"
+        ;;
+        conf)
+            echo "$(green ./util) $(blue conf)"
+            echo "  $(yellow 'configures your project')"
+            echo "  configures CPU architecture, programming language and tools"
+            echo
+            echo "  supported CPU architectures: $(green x86_64), $(red arm64)"
+            echo "  supported programming languages: $(green C), $(green rust)"
+            echo
+            echo "  usage: $(green ./util) $(blue "conf x86_64 rust")"
+        ;;
+        reconf)
+            echo "$(green ./util) $(blue reconf)"
+            echo "  $(yellow 'reconfigures the project if some tools have changed or are missing')"
+        ;;
+        build)
+            echo "$(green ./util) $(blue build)"
+            echo "  $(yellow 'builds your OS project')"
+            echo "  $(red 'if multiple architectures are selected, it also expects the <arch/s> parameter/s')"
+            echo "          for instance: $(green ./util) $(blue 'build x86_64 arm64')"
+            echo
+            echo "  append $(blue debug) for debug options:"
+            echo "          $(green ./util) $(blue "build debug") builds your operating system for debugging"
+            echo "  append $(blue run) to automatically run it in emulator"
+            echo "          $(green ./util) $(blue 'build run red debug') starts the emulator for debugging"
+        ;;
+        run)
+            echo "$(green ./util) $(blue run)"
+            echo "  $(yellow 'starts the last compiled operating system in the emulator')"
+            echo
+            echo "  append $(blue debug) to run with debug options"
+            echo
+            echo "  this subcommand reads from the $(green "./config/qemu-parameters.conf") file"
+        ;;
+        dep)
+            echo "$(green ./util) $(blue dep)"
+            echo "  $(yellow 'installs or removes the tools needed to build and run the operating system')"
+            echo "  $(red 'internet connection is needed')"
+            echo
+            echo "  append $(blue install) to install all dependencies"
+            echo "  append $(blue remove) to uninstall all dependencies"
+            echo "      $(red "you may miss some of the uninstalled tools")"
+            echo "  append $(blue exclude) <packages> to exclude some packages"
+            echo
+            echo "  for example $(green ./util) $(blue "install exclude qemu") installs all needed packages except qemu"
+            echo
+            echo "  supported platforms:"
+            echo "      $(red Fedora Linux), $(red Arch Linux), $(red Ubuntu), $(red Debian) $(red CentOS)"
+            echo "      $(green MacOS) (brew), $(red FreeBSD), $(red OpenBSD)"
+        ;;
+        change)
+            echo "$(green ./util) $(blue change)"
+            echo "  $(yellow 'allows you to change project info')"
+            echo
+            echo "  available changes:"
+            echo "      $(yellow os) $(blue "name/version/release") changes OS name, version or release"
+            echo "      $(yellow kernel) $(blue "name/version/release") changes kernel name, version or release"
+        ;;
+        mkiso)
+            echo "$(green ./util) $(blue mkiso)"
+            echo "  $(yellow builds you a bootable ISO) ($(red "the OS kernel must be built"))"
+            echo 
+            echo "  usage: $(green ./util) $(blue "mkiso <arch/s>")"
+        ;;
+        *)
+            if [ "$1" != $i ]; then
+                error "unknown command '$i'"
+                exit 1
+            fi
+        ;;
+    esac
+    echo;
+done
