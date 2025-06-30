@@ -9,6 +9,7 @@ use core::mem::{ManuallyDrop, MaybeUninit};
 use core::ptr::drop_in_place;
 use core::slice::{self, from_raw_parts, from_raw_parts_mut};
 use core::ops::{Bound::*, Index, IndexMut, RangeBounds, Deref, DerefMut};
+use core::cmp::Ordering::*;
 
 use crate::mem::DynamicBuffer;
 use crate::TryClone;
@@ -16,12 +17,6 @@ use crate::TryClone;
 
 /// A contiguous growable array type, written as Vec<T>, short for ‘vector’
 /// - this implementation will also allow you to tweak memory management using generic parameters
-/// 
-/// ## Implementation details
-/// - Apart from the `std::Vec`, this implementaion does check for null pointer in most functions
-///   - covered in function-specific documentation if not
-///   - [guarantee (in std)](https://docs.rs/rustc-std-workspace-std/latest/std/vec/struct.Vec.html#guarantees)
-/// 
 /// 
 /// ### Generic parameters
 /// 1. `T`: datatype of each element
@@ -37,9 +32,17 @@ impl<T: Sized, const STEP: usize> Vec<T, STEP> {
     /// Expands the `capacity` of the vector by `STEP`
     /// - this function always reallocates memory
     /// - **panics** if allocation fails
-    /// - **null checking** is done internally via `DynamicBuffer`
+    #[inline(always)]
     pub fn expand(&mut self) {
         self.data.expand();
+    }
+
+    /// Tries to expand the `capacity` of the vector by `STEP`
+    /// - this function always reallocated memory
+    /// - returns `Err` if allocation fails
+    #[inline(always)]
+    pub fn try_expand(&mut self) -> Result<(), ()> {
+        self.data.try_expand()
     }
 
     /// Constructs new empty `Vec<T>`
@@ -244,17 +247,17 @@ impl<T: Sized, const STEP: usize> Vec<T, STEP> {
 
             let ret;
 
+            self.data.size -= 1;
+
             unsafe {
 
                 let ptr = self.data.data().add(index).as_ptr();
 
                 ret = ptr.read();
 
-                core::ptr::copy(ptr.add(1), ptr, self.len() - index - 1);
+                core::ptr::copy(ptr.add(1), ptr, self.len() - index);
 
             }
-
-            self.data.size -= 1;
 
             ret
 
@@ -263,8 +266,75 @@ impl<T: Sized, const STEP: usize> Vec<T, STEP> {
         }
     }
 
+
+    /// Inserts `val` into the vector at `index` index
+    /// - shifts all elements - this is `O(n)` operation
+    /// - **panics** if allocation fails or `index > self.len()`
+    /// - if `index == self.len()`, pushes instead
+    pub fn insert(&mut self, index: usize, val: T) {
+
+        let len = self.len();
+
+        if index > len {
+            panic!("index is out of bounds");
+        } else if index == len {
+            self.push(val);
+            return;
+        }
+
+        if len == self.capacity() {
+            self.expand();
+        }
+
+        unsafe {
+            let ptr = self.data.as_ptr().add(index);
+
+            core::ptr::copy(ptr, ptr.add(1), len - index);
+
+            ptr.write(val);
+        }
+
+        self.data.size += 1;
+
+    }
+
+    /// Tries to insert `val` into the vector at `index` index
+    /// - shifts all elements - this is `O(n)` operation
+    /// - returns `val` if allocation fails or `index > self.len()`
+    /// - if `index == self.len()`, pushes instead
+    pub fn try_insert(&mut self, index: usize, val: T) -> Result<(), T> {
+
+        let len = self.len();
+
+        if index > len {
+            return Err(val);
+        } else if index == len {
+            return self.try_push(val);
+        }
+
+        if len == self.capacity() {
+            if let Err(_) = self.try_expand() {
+                return Err(val);
+            }
+        }
+
+        unsafe {
+            let ptr = self.data.data().add(index).as_ptr();
+
+            core::ptr::copy(ptr, ptr.add(1), len - index);
+
+            ptr.write(val);
+        }
+
+        self.data.size += 1;
+
+        Ok(())
+
+    }
+
     /// Drops the last element of the vector
     /// - **no-op** if `self.is_empty()`
+    /// - does not affect `capacity`
     pub fn pop(&mut self) {
 
         if self.len() > 0 {
@@ -277,6 +347,7 @@ impl<T: Sized, const STEP: usize> Vec<T, STEP> {
 
     /// Removes and returns the last element of the vector
     /// - **no-op** if `self.is_empty()`
+    /// - does not affect `capacity`
     pub fn pop_ret(&mut self) -> Option<T> {
 
         if self.len() > 0 {
@@ -284,6 +355,33 @@ impl<T: Sized, const STEP: usize> Vec<T, STEP> {
             Some(unsafe { self.data.data().add(self.len()).read() })
         } else {
             None
+        }
+    }
+
+    /// Removes last `n` elements of the vector
+    /// - does not affect `capacity`
+    pub fn pop_n(&mut self, n: usize) {
+        if self.len() > 0 {
+
+            if n <= self.len() {
+                
+                unsafe {
+                    drop_in_place(self.as_mut_slice_unchecked());
+                }
+                
+                self.data.size = 0;
+
+            } else {
+
+                self.data.size -= n as u32;
+
+                unsafe {
+                    let ptr = self.data.as_ptr().add(self.len());
+                    drop_in_place(slice::from_raw_parts_mut(ptr, n));
+                }
+
+            }
+            
         }
     }
 
@@ -458,13 +556,13 @@ impl<T: Sized, const STEP: usize> Vec<T, STEP> {
     }
 
 
-    /// returns contents of the vector as slice
+    /// returns contents of the vector as slice without checking for NULL
     /// - safety: use only if you are 1000% sure it will not be a disaster ._.
     pub const unsafe fn as_slice_unchecked(&self) -> &[T] {
         unsafe { from_raw_parts(self.data.data().as_ptr(), self.len())}
     }
 
-    /// returns contents of the vector as mutable slice
+    /// returns contents of the vector as mutable slice without checking for NULL
     /// - safety: use only if you are 1000% sure it will not be a disaster ._.
     pub const unsafe fn as_mut_slice_unchecked(&mut self) -> &mut [T] {
         unsafe { from_raw_parts_mut(self.data.data().as_ptr(), self.len())}
@@ -489,6 +587,7 @@ impl<T: Sized, const STEP: usize> Vec<T, STEP> {
     }
 
 
+    /// Checks RangeBound for this vector
     #[inline]
     fn handle_bounds<R>(&self, range: &R) -> (usize, usize)
     where R: RangeBounds<usize> {

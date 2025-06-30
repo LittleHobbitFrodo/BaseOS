@@ -7,14 +7,14 @@ if [ "$#" -eq 0 ]; then
     $(note "util is meant to be run only in project root directory")"
 echo
 echo "subcommands:
-    $(blue info)                - show information about project
-    $(blue conf) <arch/lang>    - configures the environment and finds needed tools ($(red "needs internet connection"))
-    $(blue reconf)              - reconfigures the project (using different tools, ...)
-    $(blue build)               - builds the OS
-    $(blue run)                 - runs the OS in emulator
-    $(blue dep)                 - installs or removes the tools needed to build and run the operating system ($(red "needs internet connection"))
-    $(blue change)              - allows you to change project info
-    $(blue mkiso)               - creates bootable ISO for your OS"
+    $(blue info)            - show information about project
+    $(blue conf)            - configures the environment and finds needed tools ($(red "needs internet connection"))
+    $(blue reconf) <arch>   - reconfigures the project (using different tools, ...)
+    $(blue build)           - builds the OS
+    $(blue run)             - runs the OS in emulator
+    $(blue dep)             - installs or removes the tools needed to build and run the operating system ($(red "needs internet connection"))
+    $(blue change)          - allows you to change project info
+    $(blue mkiso)           - creates bootable ISO for your OS"
 echo
 echo "$(magenta NOTE ): for more info use ./util help <subcommands>
     for example: $(green "./util help build run") will show information about the $(blue build) and $(blue run) subcommand"
@@ -43,10 +43,9 @@ for i in $CMD; do
         conf)
             echo "$(green ./util) $(blue conf)"
             echo "  $(yellow 'configures your project')"
-            echo "  configures CPU architecture, programming language and tools"
+            echo "  configures CPU architecture and tools"
             echo
             echo "  supported CPU architectures: $(green x86_64), $(red arm64)"
-            echo "  supported programming languages: $(green C), $(green rust)"
             echo
             echo "  usage: $(green ./util) $(blue "conf x86_64 rust")"
         ;;

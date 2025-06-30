@@ -13,8 +13,8 @@ pub const GB: usize = 1024 * 1024 * 1024;
 
 pub use core::mem::needs_drop;
 
-pub mod rosync;
-pub use rosync::RoSync;
+pub mod readonly;
+pub use readonly::ReadOnly;
 pub mod alloc;
 pub mod boxed;
 pub mod array;

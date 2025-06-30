@@ -4,12 +4,11 @@
 source "$PWD/files/base/scripts.conf"
 
 if [ $# -eq 0 ]; then
-    error "$(blue conf): expected at least 2 parameters: $(yellow architecture) and $(yellow language)"
+    error "$(blue conf): expected at least 2 parameters: $(yellow architecture)"
     exit 1
 fi
 
 arch=()
-lang=""
 iso_name=BaseOS     #   -<arch>.iso will be added by the build subcommand
     #   iso files are located in the ./files directory
 all_tools_installed=true
@@ -19,26 +18,26 @@ main_file=NONE
 
 
 
-#   resolve lang and arch
+#   resolve arch
 for arg in "$@"; do
     i="$(echo $arg | tr '[:upper:]' '[:lower:]')"
     case $i in
-        c)
-            if [ -z "$lang" ]; then
-                lang="$i"
-            else
-                error "only one language is supported"
-                exit 1
-            fi
-        ;;
-        rust)
-            if [ -z "$lang" ]; then
-                lang="$i"
-            else
-                error "only one language is supported"
-                exit 1
-            fi
-        ;;
+        # c)
+        #     if [ -z "$lang" ]; then
+        #         lang="$i"
+        #     else
+        #         error "only one language is supported"
+        #         exit 1
+        #     fi
+        # ;;
+        # rust)
+        #     if [ -z "$lang" ]; then
+        #         lang="$i"
+        #     else
+        #         error "only one language is supported"
+        #         exit 1
+        #     fi
+        # ;;
         x86_64)
             if [[ ! " ${arch[@]} " =~ " ${i} " ]]; then
                 arch+=("$i")
@@ -49,16 +48,26 @@ for arg in "$@"; do
                 arch+=("$i")
             fi
         ;;
+        aarch64)
+            if [[ ! " ${arch[@]} " =~ " arm64 " ]]; then
+                arch+=("arm64")
+            fi
+        ;;
+        amd64)
+            if [[ ! " ${arch[@]} " =~ " x86_64 " ]]; then
+                arch+=("x86_64")
+            fi
+        ;;
         *)
-            error "'$arg' is not valid architecture or language"
+            error "'$arg' is not valid architecture"
             exit 1
         ;;
     esac
 done
 
-if [[ "$lang" == c && "$main_file" == NONE ]]; then
-    main_file="./kernel/src/init/init.c"
-fi
+#if [[ "$lang" == c && "$main_file" == NONE ]]; then
+#    main_file="./kernel/src/init/init.c"
+#fi
 
 note "creating utility configuration"
 
@@ -66,7 +75,7 @@ echo "# This is util configuration, please do not change manually" > $UTIL_CONFI
 echo "configured=true" >> $UTIL_CONFIG
 echo "xorriso=$(search_path xorriso)" >> $UTIL_CONFIG
 echo "arch=\"${arch[@]}\"" >> $UTIL_CONFIG
-echo "lang=$lang" >> $UTIL_CONFIG
+#echo "lang=$lang" >> $UTIL_CONFIG
 echo "iso_name=$iso_name" >> $UTIL_CONFIG
 echo "main_file=$main_file" >> $UTIL_CONFIG
 
@@ -79,26 +88,26 @@ for i in "${arch[@]}"; do
     linker=NONE
 
     #   check for compiler and linker
-    case "$lang" in
-        c)
-            for cc in $c_compiler_midnames; do
-                echo checking compiler for : "$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
-                echo checking linker for : "$(get_arch $i)$cc$(echo -n ld)"
-                if [ $compiler == NONE ]; then
-                    compiler="$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
-                fi
+    # case "$lang" in
+    #     c)
+    #         for cc in $c_compiler_midnames; do
+    #             echo checking compiler for : "$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
+    #             echo checking linker for : "$(get_arch $i)$cc$(echo -n ld)"
+    #             if [ $compiler == NONE ]; then
+    #                 compiler="$(search_path "$(get_arch $i)$cc$(echo -n gcc)")"
+    #             fi
 
-                if [ $linker == NONE ]; then
-                    linker="$(search_path "$(get_arch $i)$cc$(echo -n ld)")"
-                fi
-                if [[ "$compiler" != NONE && "$linker" != NONE ]]; then
-                    note "using $(blue "$compiler") as C compiler"
-                    note "using $(blue "$linker") as linker"
-                    break
-                fi
-            done
-        ;;
-        rust)
+    #             if [ $linker == NONE ]; then
+    #                 linker="$(search_path "$(get_arch $i)$cc$(echo -n ld)")"
+    #             fi
+    #             if [[ "$compiler" != NONE && "$linker" != NONE ]]; then
+    #                 note "using $(blue "$compiler") as C compiler"
+    #                 note "using $(blue "$linker") as linker"
+    #                 break
+    #             fi
+    #         done
+    #     ;;
+    #     rust)
             compiler="$(search_path cargo)"
 
             #linker="$(search_path "$(get_arch $i)-elf-ld")"
@@ -114,8 +123,8 @@ for i in "${arch[@]}"; do
                 fi
 
             done
-        ;;
-    esac
+    #     ;;
+    # esac
     qemu="$(search_path "qemu-system-$(get_arch $i)")"
 
     config_file="$(arch_config $i)"

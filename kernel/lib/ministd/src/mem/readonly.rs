@@ -6,18 +6,15 @@
 
 
 /// # Read Only Sync
-/// The [`RoSync`] structure offers read only access for any thread with no locking or reference counting mechanism
-/// 
-/// ### Use case
-/// Make static read-only data accessible without [`unsafe`] block
-pub struct RoSync<T> {
+/// `ReadOnly<T>` allows you to store read-only data and access it wihout the need of using `unsafe` blocks
+pub struct ReadOnly<T> {
     data: T,
 }
 
-unsafe impl<T> Sync for RoSync<T> {}
-unsafe impl<T> Send for RoSync<T> {}
+unsafe impl<T> Sync for ReadOnly<T> {}
+unsafe impl<T> Send for ReadOnly<T> {}
 
-impl<T> RoSync<T> {
+impl<T> ReadOnly<T> {
     pub const fn new(value: T) -> Self {
         Self { data: value }
     }
@@ -33,7 +30,7 @@ impl<T> RoSync<T> {
     }
 }
 
-impl<T> core::ops::Deref for RoSync<T> {
+impl<T> core::ops::Deref for ReadOnly<T> {
     type Target=T;
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
@@ -42,7 +39,7 @@ impl<T> core::ops::Deref for RoSync<T> {
 }
 
 
-impl<T> Drop for RoSync<T> {
+impl<T> Drop for ReadOnly<T> {
     fn drop(&mut self) {
         if crate::mem::needs_drop::<T>() {
             //  drop T here

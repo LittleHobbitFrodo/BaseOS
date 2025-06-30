@@ -68,7 +68,7 @@ Please note that some development **dependencies** must be **built from source**
   - [X] Project configuration
   - [X] Project Reconfiguration
   - [X] Running
-  - [ ] Dependency management
+  - [ ] Dependency management (not all system are supported at the moment)
   - [X] Project management
   - [X] mkiso
 ### Rust
@@ -87,7 +87,7 @@ Please note that some development **dependencies** must be **built from source**
   - [X] String (untested)
   - [X] Box
     - `Array` is used for allocation of arrays
-  - [ ] Vector
+  - [X] Vector
   - [ ] HashMap
   - [ ] Rc
   - [ ] Arc

@@ -6,8 +6,9 @@
 
 
 use ministd::{dbg, io};
-use ministd::{println, locked_println, init};
+use ministd::{println, print, locked_println, eprintln, init};
 use ministd::{Box, Array, Vec, String};
+use core::fmt::Write;
 
 fn init() -> Result<(), ()> {
 
@@ -21,7 +22,12 @@ fn init() -> Result<(), ()> {
 
     println!("hello world!");
 
-    
+    let mut string: String = String::from("hello world!");
+
+    let x = 69;
+    write!(string, "x: {x}").expect("failed to parse");
+
+    println!("string: {string}");
 
     Ok(())
 

@@ -61,6 +61,7 @@ impl<T: Sized, const STEP: usize> DynamicBuffer<T, STEP> {
     /// Constructs `DynamicBuffer<T>` with some elements allocated
     /// - **panics** if allocation fails
     /// - `size = 0`
+    /// - `capacity` is aligned to `STEP`
     pub fn with_capacity(capacity: usize) -> Self {
         let cap = Self::new_capacity(capacity);
 
@@ -81,6 +82,7 @@ impl<T: Sized, const STEP: usize> DynamicBuffer<T, STEP> {
     /// Tries to construct `DynamicBuffer<T>` with some elements allocated
     /// - returns `Err` if allocation fails
     /// - `size = 0`
+    /// - `capacity` is aligned to `STEP`
     pub fn try_with_capacity(capacity: usize) -> Result<Self, ()> {
         let cap = Self::new_capacity(capacity);
 

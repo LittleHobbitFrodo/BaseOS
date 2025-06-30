@@ -8,7 +8,7 @@
 //  NOTE: the font contains only printable characters (according to the ASCII table)
 
 
-use crate::mem::RoSync;
+use crate::mem::ReadOnly;
 
 pub const FONT_BITS: usize = 8;
 pub const PLACE_SUB: usize = 31;
@@ -34,7 +34,7 @@ impl Font {
 
 
 
-pub static FONT: RoSync<Font> = RoSync::new(Font {0: [
+pub static FONT: ReadOnly<Font> = ReadOnly::new(Font {0: [
     /*each bit is one pixel, set bits will be drawn*/
     /*null byte*/[0, 0, 0, 0, 0, 0, 0, 0],
     /*space*/[0, 0, 0, 0, 0, 0, 0, 0],

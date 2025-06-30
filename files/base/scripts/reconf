@@ -12,7 +12,7 @@ fi
 echo >> $UTIL_CONFIG
 echo "configured=false" >> $UTIL_CONFIG
 
-$SCRIPTS/conf $lang $arch
+$SCRIPTS/conf $arch
 
 
 

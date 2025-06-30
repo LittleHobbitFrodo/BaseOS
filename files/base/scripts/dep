@@ -150,18 +150,18 @@ case "$(uname)" in
             fi
         fi
 
-        case $lang in
-            c)
-                binutils_postfix="gcc"
-            ;;
-            rust)
+        #case $lang in
+        #    c)
+        #        binutils_postfix="gcc"
+        #    ;;
+        #    rust)
                 binutils_postfix="binutils"
-            ;;
-            *)
-                error "language $lang is not supported by dep subcommand"
-                exit 2
-            ;;
-        esac
+        #    ;;
+        #    *)
+        #        error "language $lang is not supported by dep subcommand"
+        #        exit 2
+        #    ;;
+        #esac
 
         #   find linker/compiler
         IFS=" "
@@ -213,18 +213,18 @@ case "$(uname)" in
             "Fedora")
 
                 #   check whether to install compiler or only linker
-                case $lang in
-                    c)
-                        binutils_postfix="gcc"
-                    ;;
-                    rust)
+                # case $lang in
+                #     c)
+                #         binutils_postfix="gcc"
+                #     ;;
+                #     rust)
                         binutils_postfix="binutils"
-                    ;;
-                    *)
-                        error "language $lang is not supported by dep subcommand"
-                        exit 2
-                    ;;
-                esac
+                #     ;;
+                #     *)
+                #         error "language $lang is not supported by dep subcommand"
+                #         exit 2
+                #     ;;
+                # esac
 
                 #   find linker/compiler
                 IFS=" "
