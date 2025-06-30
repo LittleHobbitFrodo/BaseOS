@@ -7,7 +7,7 @@
 
 use ministd::{dbg, io};
 use ministd::{println, print, locked_println, eprintln, init};
-use ministd::{Box, Array, Vec, String};
+use ministd::{Box, Array, Vec, String, HashMap};
 use core::fmt::Write;
 
 fn init() -> Result<(), ()> {
@@ -22,12 +22,14 @@ fn init() -> Result<(), ()> {
 
     println!("hello world!");
 
-    let mut string: String = String::from("hello world!");
+    let mut h: HashMap<usize, String> = HashMap::new();
 
-    let x = 69;
-    write!(string, "x: {x}").expect("failed to parse");
+    h.insert(1, String::from("hello world!"));
 
-    println!("string: {string}");
+    let get = h.get(&1).expect("failed to get");
+
+    println!("get: {}", get);
+
 
     Ok(())
 

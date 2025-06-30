@@ -38,11 +38,14 @@ pub use bootloader;
 pub use limine_rs as limine;
 pub use buddy_system_allocator as allocator;
 pub use spin;
+pub use hashbrown;
 
 
 pub use spin::{Mutex, MutexGuard,
     RwLock, RwLockReadGuard, RwLockWriteGuard, RwLockUpgradableGuard,
     Lazy, Barrier, Once};
+
+pub use hashbrown::{HashMap, HashSet, HashTable};
 
 use core::arch::asm;
 use core::hint::spin_loop;

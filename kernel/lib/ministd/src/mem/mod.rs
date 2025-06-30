@@ -20,7 +20,6 @@ pub mod boxed;
 pub mod array;
 pub mod dynamic_buffer;
 
-
 pub mod string;
 pub mod vec;
 

@@ -19,7 +19,7 @@ pub use buddy_system_allocator as allocator;
 use spin::MutexGuard;
 use core::alloc::GlobalAlloc;
 pub use core::alloc::Layout;
-use core::mem::{ManuallyDrop, MaybeUninit};
+use core::mem::MaybeUninit;
 use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut, NonNull};
 use crate::mem::Region;
 use crate::spin::Mutex;
@@ -155,6 +155,9 @@ unsafe impl GlobalAlloc for Allocator {
     ///   - success: try allocation again
     ///   - failure: returns null
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+
+        crate::println!("ALLOC");
+
         match self.alloc.lock().alloc(layout) {
             Ok(data) => data.as_ptr(),
             Err(_) => {
